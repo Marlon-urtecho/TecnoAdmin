@@ -1,0 +1,763 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum TipoGenero {
+  masculino
+  femenino
+  otro
+  prefiere_no_decir
+}
+
+enum TipoDireccion {
+  facturacion
+  envio
+  ambos
+}
+
+enum EstadoPedido {
+  pendiente
+  confirmado
+  procesando
+  enviado
+  entregado
+  cancelado
+  reembolsado
+}
+
+enum EstadoPago {
+  pendiente
+  procesando
+  pagado
+  fallido
+  reembolsado
+  parcialmente_reembolsado
+}
+
+enum EstadoFulfillment {
+  no_completado
+  parcialmente_completado
+  completado
+}
+
+enum TipoTransaccionInventario {
+  compra
+  devolucion
+  ajuste
+  danado
+  recibido
+  reservado
+  liberado
+}
+
+enum TipoReferencia {
+  pedido
+  ajuste
+  devolucion
+  transferencia
+}
+
+enum CodigoMoneda {
+  USD
+  EUR
+  GBP
+  MXN
+}
+
+enum ProveedorPago {
+  stripe
+  paypal
+  square
+}
+
+enum TipoMetodoPago {
+  tarjeta
+  paypal
+  transferencia_bancaria
+  apple_pay
+  google_pay
+}
+
+enum MarcaTarjeta {
+  visa
+  mastercard
+  american_express
+  discover
+  diners_club
+  jcb
+  unionpay
+}
+
+enum TipoDescuento {
+  porcentaje
+  monto_fijo
+  envio_gratuito
+}
+
+enum TipoDatoConfiguracion {
+  texto
+  numero
+  booleano
+  json
+  arreglo
+}
+
+// Models
+model Usuario {
+  usuario_id        String    @id @default(uuid()) @map("usuario_id")
+  correo_electronico String   @unique @map("correo_electronico")
+  correo_verificado Boolean  @default(false) @map("correo_verificado")
+  numero_telefono   String?  @map("numero_telefono")
+  telefono_verificado Boolean @default(false) @map("telefono_verificado")
+  hash_contrasena   String?  @map("hash_contrasena")
+  esta_activo       Boolean  @default(true) @map("esta_activo")
+  es_personal       Boolean  @default(false) @map("es_personal")
+  es_superusuario   Boolean  @default(false) @map("es_superusuario")
+  ultimo_acceso     DateTime? @map("ultimo_acceso")
+  fecha_registro    DateTime @default(now()) @map("fecha_registro")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  perfil_usuario      PerfilUsuario?
+  cuentas_oauth       CuentaOAuth[]
+  sesiones_usuario    SesionUsuario[]
+  direcciones         Direccion[]
+  carritos            Carrito[]
+  pedidos             Pedido[]
+  metodos_pago        MetodoPago[]
+  usos_cupon          UsoCupon[]
+  listas_deseos       ListaDeseos[]
+  reseñas_producto    ResenaProducto[]
+  transacciones_inventario TransaccionInventario[] @relation("TransaccionesCreadasPor")
+
+  @@map("usuario")
+  @@index([correo_electronico])
+  @@index([numero_telefono])
+  @@index([esta_activo])
+  @@index([fecha_registro], type: Brin)
+}
+
+model PerfilUsuario {
+  perfil_id          String    @id @default(uuid()) @map("perfil_id")
+  usuario_id         String    @unique @map("usuario_id")
+  nombres            String    @map("nombres")
+  apellidos          String    @map("apellidos")
+  fecha_nacimiento   DateTime? @map("fecha_nacimiento")
+  genero             TipoGenero? @map("genero")
+  url_avatar         String?   @map("url_avatar")
+  preferencias       Json      @default("{}") @map("preferencias")
+  suscrito_boletin   Boolean   @default(true) @map("suscrito_boletin")
+  acepta_marketing   Boolean   @default(true) @map("acepta_marketing")
+  zona_horaria       String    @default("UTC") @map("zona_horaria")
+  localizacion       String    @default("es-ES") @map("localizacion")
+  fecha_creacion     DateTime  @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario Usuario @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+
+  @@map("perfil_usuario")
+  @@index([usuario_id])
+  @@index([nombres])
+  @@index([apellidos])
+}
+
+model ProveedorOAuth {
+  proveedor_id       String   @id @default(uuid()) @map("proveedor_id")
+  nombre             String   @map("nombre")
+  cliente_id         String   @map("cliente_id")
+  secreto_cliente    String   @map("secreto_cliente")
+  esta_activo        Boolean  @default(true) @map("esta_activo")
+  configuracion      Json     @default("{}") @map("configuracion")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+
+  // Relations
+  cuentas_oauth CuentaOAuth[]
+
+  @@map("proveedor_oauth")
+  @@index([nombre])
+  @@index([esta_activo])
+}
+
+model CuentaOAuth {
+  cuenta_oauth_id      String   @id @default(uuid()) @map("cuenta_oauth_id")
+  usuario_id           String   @map("usuario_id")
+  proveedor_id         String   @map("proveedor_id")
+  id_usuario_proveedor String   @map("id_usuario_proveedor")
+  token_acceso         String?  @map("token_acceso")
+  token_actualizacion  String?  @map("token_actualizacion")
+  token_expiracion     DateTime? @map("token_expiracion")
+  alcance              String?  @map("alcance")
+  fecha_creacion       DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion  DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario   Usuario        @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+  proveedor ProveedorOAuth @relation(fields: [proveedor_id], references: [proveedor_id], onDelete: Cascade)
+
+  @@map("cuenta_oauth")
+  @@index([usuario_id])
+  @@index([proveedor_id])
+  @@index([id_usuario_proveedor])
+  @@unique([proveedor_id, id_usuario_proveedor])
+}
+
+model SesionUsuario {
+  sesion_id            String   @id @default(uuid()) @map("sesion_id")
+  usuario_id           String   @map("usuario_id")
+  token_sesion         String   @unique @map("token_sesion")
+  informacion_dispositivo Json   @default("{}") @map("informacion_dispositivo")
+  direccion_ip         String?  @map("direccion_ip")
+  agente_usuario       String?  @map("agente_usuario")
+  fecha_expiracion     DateTime @map("fecha_expiracion")
+  fecha_creacion       DateTime @default(now()) @map("fecha_creacion")
+
+  // Relations
+  usuario Usuario @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+
+  @@map("sesion_usuario")
+  @@index([usuario_id])
+  @@index([token_sesion])
+  @@index([fecha_expiracion], type: Brin)
+}
+
+model Direccion {
+  direccion_id          String         @id @default(uuid()) @map("direccion_id")
+  usuario_id            String         @map("usuario_id")
+  tipo_direccion        TipoDireccion  @map("tipo_direccion")
+  es_principal          Boolean        @default(false) @map("es_principal")
+  nombre_destinatario   String?        @map("nombre_destinatario")
+  nombre_empresa        String?        @map("nombre_empresa")
+  linea_direccion1      String         @map("linea_direccion1")
+  linea_direccion2      String?        @map("linea_direccion2")
+  ciudad                String         @map("ciudad")
+  estado_provincia      String         @map("estado_provincia")
+  codigo_postal         String         @map("codigo_postal")
+  codigo_pais           String         @map("codigo_pais")
+  numero_telefono       String?        @map("numero_telefono")
+  instrucciones_entrega String?        @map("instrucciones_entrega")
+  fecha_creacion        DateTime       @default(now()) @map("fecha_creacion")
+  fecha_actualizacion   DateTime       @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario              Usuario @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+  pedidos_facturacion  Pedido[] @relation("DireccionFacturacion")
+  pedidos_envio        Pedido[] @relation("DireccionEnvio")
+
+  @@map("direccion")
+  @@index([usuario_id])
+  @@index([tipo_direccion])
+  @@index([codigo_pais])
+  @@index([es_principal])
+}
+
+model Categoria {
+  categoria_id        String   @id @default(uuid()) @map("categoria_id")
+  categoria_padre_id  String?  @map("categoria_padre_id")
+  nombre              String   @map("nombre")
+  descripcion         String?  @map("descripcion")
+  slug                String   @unique @map("slug")
+  url_imagen          String?  @map("url_imagen")
+  orden               Int      @default(0) @map("orden")
+  esta_activa         Boolean  @default(true) @map("esta_activa")
+  metadatos_seo       Json     @default("{}") @map("metadatos_seo")
+  fecha_creacion      DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  padre       Categoria? @relation("CategoriaPadre", fields: [categoria_padre_id], references: [categoria_id])
+  hijos       Categoria[] @relation("CategoriaPadre")
+  productos   Producto[]
+
+  @@map("categoria")
+  @@index([categoria_padre_id])
+  @@index([slug])
+  @@index([esta_activa])
+  @@index([orden])
+}
+
+model Marca {
+  marca_id            String   @id @default(uuid()) @map("marca_id")
+  nombre              String   @map("nombre")
+  descripcion         String?  @map("descripcion")
+  url_logo            String?  @map("url_logo")
+  url_sitio_web       String?  @map("url_sitio_web")
+  esta_activa         Boolean  @default(true) @map("esta_activa")
+  orden               Int      @default(0) @map("orden")
+  fecha_creacion      DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  productos Producto[]
+
+  @@map("marca")
+  @@index([nombre])
+  @@index([esta_activa])
+}
+
+model Proveedor {
+  proveedor_id        String   @id @default(uuid()) @map("proveedor_id")
+  nombre              String   @map("nombre")
+  persona_contacto    String?  @map("persona_contacto")
+  correo_electronico  String?  @map("correo_electronico")
+  numero_telefono     String?  @map("numero_telefono")
+  url_sitio_web       String?  @map("url_sitio_web")
+  esta_activo         Boolean  @default(true) @map("esta_activo")
+  fecha_creacion      DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  productos Producto[]
+
+  @@map("proveedor")
+  @@index([nombre])
+  @@index([esta_activo])
+}
+
+model Producto {
+  producto_id              String         @id @default(uuid()) @map("producto_id")
+  sku                      String         @unique @map("sku")
+  nombre                   String         @map("nombre")
+  slug                     String         @unique @map("slug")
+  descripcion              String?        @map("descripcion")
+  descripcion_corta        String?        @map("descripcion_corta")
+  categoria_id             String         @map("categoria_id")
+  marca_id                 String         @map("marca_id")
+  proveedor_id             String         @map("proveedor_id")
+  precio_base              Float          @map("precio_base")
+  precio_comparacion       Float?         @map("precio_comparacion")
+  precio_costo             Float?         @map("precio_costo")
+  controlar_inventario     Boolean        @default(true) @map("controlar_inventario")
+  permitir_pedidos_agotados Boolean       @default(false) @map("permitir_pedidos_agotados")
+  umbral_stock_bajo        Int            @default(5) @map("umbral_stock_bajo")
+  peso_gramos              Int?           @map("peso_gramos")
+  dimensiones              Json           @default("{}") @map("dimensiones")
+  atributos                Json           @default("{}") @map("atributos")
+  especificaciones         Json           @default("{}") @map("especificaciones")
+  url_imagen_principal     String?        @map("url_imagen_principal")
+  es_destacado             Boolean        @default(false) @map("es_destacado")
+  esta_activo              Boolean        @default(true) @map("esta_activo")
+  es_digital               Boolean        @default(false) @map("es_digital")
+  meta_titulo              String?        @map("meta_titulo")
+  meta_descripcion         String?        @map("meta_descripcion")
+  fecha_creacion           DateTime       @default(now()) @map("fecha_creacion")
+  fecha_actualizacion      DateTime       @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  categoria        Categoria        @relation(fields: [categoria_id], references: [categoria_id])
+  marca            Marca            @relation(fields: [marca_id], references: [marca_id])
+  proveedor        Proveedor        @relation(fields: [proveedor_id], references: [proveedor_id])
+  variantes        VarianteProducto[]
+  imagenes         ImagenProducto[]
+  reseñas          ResenaProducto[]
+  inventarios      Inventario[]
+  items_carrito    ItemCarrito[]
+  items_pedido     ItemPedido[]
+  items_lista_deseos ItemListaDeseos[]
+
+  @@map("producto")
+  @@index([sku])
+  @@index([slug])
+  @@index([categoria_id])
+  @@index([marca_id])
+  @@index([proveedor_id])
+  @@index([precio_base])
+  @@index([es_destacado])
+  @@index([esta_activo])
+  @@index([fecha_creacion], type: Brin)
+}
+
+model VarianteProducto {
+  variante_id        String   @id @default(uuid()) @map("variante_id")
+  producto_id        String   @map("producto_id")
+  sku                String   @unique @map("sku")
+  nombre_variante    String   @map("nombre_variante")
+  ajuste_precio      Float    @default(0) @map("ajuste_precio")
+  atributos          Json     @map("atributos")
+  url_imagen         String?  @map("url_imagen")
+  orden              Int      @default(0) @map("orden")
+  esta_activa        Boolean  @default(true) @map("esta_activa")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  producto    Producto         @relation(fields: [producto_id], references: [producto_id], onDelete: Cascade)
+  imagenes    ImagenProducto[]
+  inventario  Inventario?
+  items_carrito ItemCarrito[]
+  items_pedido ItemPedido[]
+  items_lista_deseos ItemListaDeseos[]
+
+  @@map("variante_producto")
+  @@index([producto_id])
+  @@index([sku])
+  @@index([esta_activa])
+}
+
+model ImagenProducto {
+  imagen_id        String   @id @default(uuid()) @map("imagen_id")
+  producto_id      String   @map("producto_id")
+  variante_id      String?  @map("variante_id")
+  url_imagen       String   @map("url_imagen")
+  texto_alternativo String? @map("texto_alternativo")
+  orden            Int      @default(0) @map("orden")
+  es_principal     Boolean  @default(false) @map("es_principal")
+  fecha_creacion   DateTime @default(now()) @map("fecha_creacion")
+
+  // Relations
+  producto Producto         @relation(fields: [producto_id], references: [producto_id], onDelete: Cascade)
+  variante VarianteProducto? @relation(fields: [variante_id], references: [variante_id], onDelete: Cascade)
+
+  @@map("imagen_producto")
+  @@index([producto_id])
+  @@index([variante_id])
+  @@index([orden])
+}
+
+model ResenaProducto {
+  reseña_id            String   @id @default(uuid()) @map("reseña_id")
+  producto_id          String   @map("producto_id")
+  usuario_id           String   @map("usuario_id")
+  item_pedido_id       String?  @map("item_pedido_id")
+  calificacion         Int      @map("calificacion")
+  titulo               String?  @map("titulo")
+  comentario           String?  @map("comentario")
+  es_compra_verificada Boolean  @default(false) @map("es_compra_verificada")
+  esta_aprobada        Boolean  @default(true) @map("esta_aprobada")
+  contador_util        Int      @default(0) @map("contador_util")
+  fecha_creacion       DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion  DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  producto Producto @relation(fields: [producto_id], references: [producto_id], onDelete: Cascade)
+  usuario  Usuario  @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+
+  @@map("reseña_producto")
+  @@index([producto_id])
+  @@index([usuario_id])
+  @@index([calificacion])
+  @@index([esta_aprobada])
+  @@index([fecha_creacion], type: Brin)
+}
+
+model Inventario {
+  inventario_id          String   @id @default(uuid()) @map("inventario_id")
+  producto_id            String   @map("producto_id")
+  variante_id            String?  @unique @map("variante_id")
+  cantidad_stock         Int      @default(0) @map("cantidad_stock")
+  cantidad_reservada     Int      @default(0) @map("cantidad_reservada")
+  cantidad_disponible    Int      @default(0) @map("cantidad_disponible")
+  alerta_stock_bajo      Boolean  @default(false) @map("alerta_stock_bajo")
+  fecha_actualizacion    DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  producto    Producto                 @relation(fields: [producto_id], references: [producto_id], onDelete: Cascade)
+  variante    VarianteProducto?        @relation(fields: [variante_id], references: [variante_id], onDelete: Cascade)
+  transacciones TransaccionInventario[]
+
+  @@map("inventario")
+  @@index([producto_id])
+  @@index([variante_id])
+  @@index([cantidad_disponible])
+  @@index([alerta_stock_bajo])
+}
+
+model TransaccionInventario {
+  transaccion_id     String                   @id @default(uuid()) @map("transaccion_id")
+  inventario_id      String                   @map("inventario_id")
+  tipo_transaccion   TipoTransaccionInventario @map("tipo_transaccion")
+  cambio_cantidad    Int                      @map("cambio_cantidad")
+  cantidad_anterior  Int                      @map("cantidad_anterior")
+  cantidad_nueva     Int                      @map("cantidad_nueva")
+  tipo_referencia    TipoReferencia?          @map("tipo_referencia")
+  referencia_id      String?                  @map("referencia_id")
+  razon              String?                  @map("razon")
+  creado_por         String?                  @map("creado_por")
+  fecha_creacion     DateTime                 @default(now()) @map("fecha_creacion")
+
+  // Relations
+  inventario Inventario @relation(fields: [inventario_id], references: [inventario_id], onDelete: Cascade)
+  usuario    Usuario?   @relation("TransaccionesCreadasPor", fields: [creado_por], references: [usuario_id])
+
+  @@map("transaccion_inventario")
+  @@index([inventario_id])
+  @@index([tipo_transaccion])
+  @@index([tipo_referencia])
+  @@index([referencia_id])
+  @@index([fecha_creacion], type: Brin)
+}
+
+model Carrito {
+  carrito_id         String       @id @default(uuid()) @map("carrito_id")
+  usuario_id         String?      @map("usuario_id")
+  sesion_id          String?      @map("sesion_id")
+  moneda             CodigoMoneda @default(USD) @map("moneda")
+  fecha_creacion     DateTime     @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime    @default(now()) @map("fecha_actualizacion")
+  fecha_expiracion   DateTime     @map("fecha_expiracion")
+
+  // Relations
+  usuario    Usuario?      @relation(fields: [usuario_id], references: [usuario_id])
+  items      ItemCarrito[]
+
+  @@map("carrito")
+  @@index([usuario_id])
+  @@index([sesion_id])
+  @@index([fecha_expiracion])
+}
+
+model ItemCarrito {
+  item_carrito_id    String   @id @default(uuid()) @map("item_carrito_id")
+  carrito_id         String   @map("carrito_id")
+  producto_id        String   @map("producto_id")
+  variante_id        String?  @map("variante_id")
+  cantidad           Int      @default(1) @map("cantidad")
+  precio_unitario    Float    @map("precio_unitario")
+  fecha_agregado     DateTime @default(now()) @map("fecha_agregado")
+
+  // Relations
+  carrito  Carrito          @relation(fields: [carrito_id], references: [carrito_id], onDelete: Cascade)
+  producto Producto         @relation(fields: [producto_id], references: [producto_id])
+  variante VarianteProducto? @relation(fields: [variante_id], references: [variante_id])
+
+  @@map("item_carrito")
+  @@index([carrito_id])
+  @@index([producto_id])
+}
+
+model Pedido {
+  pedido_id              String            @id @default(uuid()) @map("pedido_id")
+  numero_pedido          String            @unique @map("numero_pedido")
+  usuario_id             String?           @map("usuario_id")
+  estado                 EstadoPedido      @default(pendiente) @map("estado")
+  estado_pago            EstadoPago        @default(pendiente) @map("estado_pago")
+  estado_fulfillment     EstadoFulfillment @default(no_completado) @map("estado_fulfillment")
+  correo_cliente         String            @map("correo_cliente")
+  telefono_cliente       String?           @map("telefono_cliente")
+  direccion_facturacion_id String          @map("direccion_facturacion_id")
+  direccion_envio_id     String            @map("direccion_envio_id")
+  moneda                 CodigoMoneda      @default(USD) @map("moneda")
+  subtotal_items         Float             @map("subtotal_items")
+  costo_envio            Float             @default(0) @map("costo_envio")
+  monto_impuestos        Float             @default(0) @map("monto_impuestos")
+  monto_descuento        Float             @default(0) @map("monto_descuento")
+  monto_total            Float             @map("monto_total")
+  metodo_envio_id        String?           @map("metodo_envio_id")
+  numero_seguimiento     String?           @map("numero_seguimiento")
+  fecha_entrega_estimada DateTime?         @map("fecha_entrega_estimada")
+  fecha_pago             DateTime?         @map("fecha_pago")
+  fecha_fulfillment      DateTime?         @map("fecha_fulfillment")
+  fecha_cancelacion      DateTime?         @map("fecha_cancelacion")
+  fecha_creacion         DateTime          @default(now()) @map("fecha_creacion")
+  fecha_actualizacion    DateTime          @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario              Usuario?     @relation(fields: [usuario_id], references: [usuario_id])
+  direccion_facturacion Direccion   @relation("DireccionFacturacion", fields: [direccion_facturacion_id], references: [direccion_id])
+  direccion_envio      Direccion    @relation("DireccionEnvio", fields: [direccion_envio_id], references: [direccion_id])
+  metodo_envio         MetodoEnvio? @relation(fields: [metodo_envio_id], references: [metodo_envio_id])
+  items                ItemPedido[]
+  pagos                Pago[]
+  usos_cupon           UsoCupon[]
+
+  @@map("pedido")
+  @@index([numero_pedido])
+  @@index([usuario_id])
+  @@index([estado])
+  @@index([estado_pago])
+  @@index([correo_cliente])
+  @@index([fecha_creacion], type: Brin)
+}
+
+model ItemPedido {
+  item_pedido_id     String   @id @default(uuid()) @map("item_pedido_id")
+  pedido_id          String   @map("pedido_id")
+  producto_id        String   @map("producto_id")
+  variante_id        String?  @map("variante_id")
+  nombre_producto    String   @map("nombre_producto")
+  sku_producto       String   @map("sku_producto")
+  atributos_variante Json     @default("{}") @map("atributos_variante")
+  cantidad           Int      @map("cantidad")
+  precio_unitario    Float    @map("precio_unitario")
+  precio_total       Float    @map("precio_total")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+
+  // Relations
+  pedido   Pedido           @relation(fields: [pedido_id], references: [pedido_id], onDelete: Cascade)
+  producto Producto         @relation(fields: [producto_id], references: [producto_id])
+  variante VarianteProducto? @relation(fields: [variante_id], references: [variante_id])
+
+  @@map("item_pedido")
+  @@index([pedido_id])
+  @@index([producto_id])
+}
+
+model MetodoEnvio {
+  metodo_envio_id        String   @id @default(uuid()) @map("metodo_envio_id")
+  nombre                 String   @map("nombre")
+  descripcion            String?  @map("descripcion")
+  precio                 Float    @map("precio")
+  umbral_envio_gratuito  Float?   @map("umbral_envio_gratuito")
+  dias_estimados_min     Int?     @map("dias_estimados_min")
+  dias_estimados_max     Int?     @map("dias_estimados_max")
+  esta_activo            Boolean  @default(true) @map("esta_activo")
+  fecha_creacion         DateTime @default(now()) @map("fecha_creacion")
+
+  // Relations
+  pedidos Pedido[]
+
+  @@map("metodo_envio")
+  @@index([esta_activo])
+}
+
+model MetodoPago {
+  metodo_pago_id     String           @id @default(uuid()) @map("metodo_pago_id")
+  usuario_id         String           @map("usuario_id")
+  proveedor          ProveedorPago    @map("proveedor")
+  tipo_metodo        TipoMetodoPago   @map("tipo_metodo")
+  es_principal       Boolean          @default(false) @map("es_principal")
+  token_pago         String           @map("token_pago")
+  huella_digital     String?          @map("huella_digital")
+  ultimos_4_digitos  String?          @map("ultimos_4_digitos")
+  marca_tarjeta      MarcaTarjeta?    @map("marca_tarjeta")
+  mes_expiracion     Int?             @map("mes_expiracion")
+  año_expiracion     Int?             @map("año_expiracion")
+  fecha_creacion     DateTime         @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime        @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario Usuario @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+  pagos   Pago[]
+
+  @@map("metodo_pago")
+  @@index([usuario_id])
+  @@index([proveedor])
+  @@index([es_principal])
+  @@index([huella_digital])
+}
+
+model Pago {
+  pago_id            String       @id @default(uuid()) @map("pago_id")
+  pedido_id          String       @map("pedido_id")
+  metodo_pago_id     String?      @map("metodo_pago_id")
+  id_intento_pago    String?      @map("id_intento_pago")
+  monto              Float        @map("monto")
+  moneda             CodigoMoneda @default(USD) @map("moneda")
+  estado             EstadoPago   @map("estado")
+  respuesta_pasarela Json         @default("{}") @map("respuesta_pasarela")
+  razon_fallo        String?      @map("razon_fallo")
+  monto_reembolsado  Float        @default(0) @map("monto_reembolsado")
+  fecha_creacion     DateTime     @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime    @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  pedido     Pedido     @relation(fields: [pedido_id], references: [pedido_id], onDelete: Cascade)
+  metodo_pago MetodoPago? @relation(fields: [metodo_pago_id], references: [metodo_pago_id])
+
+  @@map("pago")
+  @@index([pedido_id])
+  @@index([id_intento_pago])
+  @@index([estado])
+  @@index([fecha_creacion], type: Brin)
+}
+
+model Cupon {
+  cupon_id                 String        @id @default(uuid()) @map("cupon_id")
+  codigo                   String        @unique @map("codigo")
+  descripcion              String?       @map("descripcion")
+  tipo_descuento           TipoDescuento @map("tipo_descuento")
+  valor_descuento          Float         @map("valor_descuento")
+  monto_pedido_minimo      Float?        @map("monto_pedido_minimo")
+  monto_descuento_maximo   Float?        @map("monto_descuento_maximo")
+  limite_usos              Int?          @map("limite_usos")
+  limite_usos_por_usuario  Int           @default(1) @map("limite_usos_por_usuario")
+  contador_usos            Int           @default(0) @map("contador_usos")
+  valido_desde             DateTime      @map("valido_desde")
+  valido_hasta             DateTime      @map("valido_hasta")
+  esta_activo              Boolean       @default(true) @map("esta_activo")
+  fecha_creacion           DateTime      @default(now()) @map("fecha_creacion")
+
+  // Relations
+  usos UsoCupon[]
+
+  @@map("cupon")
+  @@index([codigo])
+  @@index([esta_activo])
+  @@index([valido_desde])
+  @@index([valido_hasta])
+}
+
+model UsoCupon {
+  uso_cupon_id      String   @id @default(uuid()) @map("uso_cupon_id")
+  cupon_id          String   @map("cupon_id")
+  pedido_id         String   @unique @map("pedido_id")
+  usuario_id        String   @map("usuario_id")
+  monto_descuento   Float    @map("monto_descuento")
+  fecha_uso         DateTime @default(now()) @map("fecha_uso")
+
+  // Relations
+  cupon  Cupon  @relation(fields: [cupon_id], references: [cupon_id], onDelete: Cascade)
+  pedido Pedido @relation(fields: [pedido_id], references: [pedido_id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+
+  @@map("uso_cupon")
+  @@index([cupon_id])
+  @@index([pedido_id])
+  @@index([usuario_id])
+}
+
+model ListaDeseos {
+  lista_deseos_id    String   @id @default(uuid()) @map("lista_deseos_id")
+  usuario_id         String   @map("usuario_id")
+  nombre             String   @default("Mi Lista de Deseos") @map("nombre")
+  es_publica         Boolean  @default(false) @map("es_publica")
+  fecha_creacion     DateTime @default(now()) @map("fecha_creacion")
+  fecha_actualizacion DateTime @default(now()) @map("fecha_actualizacion")
+
+  // Relations
+  usuario Usuario          @relation(fields: [usuario_id], references: [usuario_id], onDelete: Cascade)
+  items   ItemListaDeseos[]
+
+  @@map("lista_deseos")
+  @@index([usuario_id])
+}
+
+model ItemListaDeseos {
+  item_lista_deseos_id String   @id @default(uuid()) @map("item_lista_deseos_id")
+  lista_deseos_id      String   @map("lista_deseos_id")
+  producto_id          String   @map("producto_id")
+  variante_id          String?  @map("variante_id")
+  fecha_agregado       DateTime @default(now()) @map("fecha_agregado")
+
+  // Relations
+  lista_deseos ListaDeseos    @relation(fields: [lista_deseos_id], references: [lista_deseos_id], onDelete: Cascade)
+  producto     Producto       @relation(fields: [producto_id], references: [producto_id])
+  variante     VarianteProducto? @relation(fields: [variante_id], references: [variante_id])
+
+  @@map("item_lista_deseos")
+  @@index([lista_deseos_id])
+  @@index([producto_id])
+  @@unique([lista_deseos_id, producto_id, variante_id])
+}
+
+model ConfiguracionSitio {
+  configuracion_id    String                @id @default(uuid()) @map("configuracion_id")
+  clave               String                @unique @map("clave")
+  valor               Json                  @map("valor")
+  tipo_dato           TipoDatoConfiguracion @map("tipo_dato")
+  descripcion         String?               @map("descripcion")
+  es_publica          Boolean               @default(false) @map("es_publica")
+  actualizado_por     String?               @map("actualizado_por")
+  fecha_actualizacion DateTime              @default(now()) @map("fecha_actualizacion")
+
+  @@map("configuracion_sitio")
+  @@index([clave])
+  @@index([es_publica])
+}
