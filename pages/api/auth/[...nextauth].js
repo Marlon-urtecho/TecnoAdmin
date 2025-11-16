@@ -46,7 +46,7 @@ export const authOptions = {
             })
 
             if (!proveedor) {
-              console.log('🔧 Creando proveedor OAuth...')
+              console.log('Creando proveedor OAuth...')
               proveedor = await prisma.proveedorOAuth.create({
                 data: {
                   nombre: account.provider,

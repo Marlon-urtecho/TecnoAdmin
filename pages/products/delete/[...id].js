@@ -24,7 +24,7 @@ export default function DeleteProductPage() {
   }
   return (
     <Layout>
-      <h1 className="text-center">Do you really want to delete
+      <h1 className="text-center">El producto esta listo para ser eliminado
         &nbsp;&quot;{productInfo?.title}&quot;?
       </h1>
       <div className="flex gap-2 justify-center">

@@ -13,6 +13,8 @@ export default async function handle(req, res) {
     if (!session) {
       return res.status(401).json({ error: "No autenticado" });
     }
+
+    //verificar Emails 
     
     // Verificar si es admin basado en el email
     const adminEmails = ['urtechoalex065@gmail.com'];
