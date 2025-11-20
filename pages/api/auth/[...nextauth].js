@@ -18,7 +18,7 @@ export const authOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        console.log('🔐 Intentando autenticación con credenciales:', credentials.email)
+      
         
         if (!credentials?.email || !credentials?.password) {
           console.log('❌ Credenciales faltantes')
@@ -71,8 +71,7 @@ export const authOptions = {
             throw new Error("Contraseña incorrecta")
           }
 
-          console.log('✅ Autenticación exitosa para:', credentials.email)
-
+         
           // Actualizar último acceso
           await prisma.usuario.update({
             where: { usuario_id: usuarioCompleto.usuario_id },
@@ -85,14 +84,6 @@ export const authOptions = {
           const isAdmin = usuarioCompleto.es_superusuario || 
                          usuarioCompleto.es_personal || 
                          usuarioCompleto.correo_electronico === 'urtechoalex065@gmail.com'
-
-          console.log('👤 Datos de usuario:', {
-            id: usuarioCompleto.usuario_id,
-            email: usuarioCompleto.correo_electronico,
-            es_superusuario: usuarioCompleto.es_superusuario,
-            es_personal: usuarioCompleto.es_personal,
-            isAdmin: isAdmin
-          })
 
           // Retornar objeto de usuario para la sesión
           return {
@@ -120,11 +111,11 @@ export const authOptions = {
   },
   callbacks: {
     async signIn({ user, account, profile }) {
-      console.log('🔑 signIn callback - User:', user?.email, 'Provider:', account.provider)
+      console.log(' signIn callback - User:', user?.email, 'Provider:', account.provider)
       
       // Para credenciales (email/contraseña), permitir el login directamente
       if (account.provider === 'credentials') {
-        console.log('✅ Login con credenciales permitido')
+        console.log(' Login con credenciales permitido')
         return true
       }
       
@@ -148,7 +139,7 @@ export const authOptions = {
           let usuarioFinal = usuarioExistente;
 
           if (usuarioExistente) {
-            console.log('✅ Usuario existente encontrado:', usuarioExistente.usuario_id)
+            console.log(' Usuario existente encontrado:', usuarioExistente.usuario_id)
             
             // Verificar si ya tiene cuenta OAuth para este proveedor
             const cuentaExistente = usuarioExistente.cuentas_oauth.find(
@@ -165,7 +156,7 @@ export const authOptions = {
               })
 
               if (!proveedor) {
-                console.log('🆕 Creando proveedor OAuth...')
+                console.log(' Creando proveedor OAuth...')
                 proveedor = await prisma.proveedorOAuth.create({
                   data: {
                     nombre: account.provider,

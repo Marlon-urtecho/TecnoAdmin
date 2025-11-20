@@ -19,62 +19,289 @@ export default async function handler(req, res) {
 
   const { id } = req.query;
 
-  if (req.method === 'GET') {
-    try {
-      const order = await prisma.pedido.findUnique({
-        where: { pedido_id: id },
+  try {
+    switch (req.method) {
+      case 'GET':
+        await handleGet(req, res, id);
+        break;
+      case 'PUT':
+        await handlePut(req, res, id);
+        break;
+      case 'POST':
+        await handlePost(req, res, id, session);
+        break;
+      default:
+        res.status(405).json({ error: "Método no permitido" });
+    }
+  } catch (error) {
+    console.error('Error en API orders/[id]:', error);
+    res.status(500).json({ 
+      error: "Error interno del servidor",
+      details: error.message,
+      code: error.code
+    });
+  }
+}
+
+// GET - Obtener orden específica
+async function handleGet(req, res, id) {
+  const order = await prisma.pedido.findUnique({
+    where: { pedido_id: id },
+    include: {
+      usuario: {
         include: {
-          usuario: {
-            include: {
-              perfil_usuario: true
+          perfil_usuario: true
+        }
+      },
+      direccion_facturacion: true,
+      direccion_envio: true,
+      metodo_envio: true,
+      items: {
+        include: {
+          producto: {
+            select: {
+              nombre: true,
+              sku: true,
+              url_imagen_principal: true
             }
           },
-          direccion_facturacion: true,
-          direccion_envio: true,
-          metodo_envio: true,
-          items: {
-            include: {
-              producto: true,
-              variante: true
-            }
-          },
-          pagos: true,
-          usos_cupon: {
-            include: {
-              cupon: true
+          variante: {
+            select: {
+              nombre_variante: true,
+              sku: true,
+              url_imagen: true
             }
           }
         }
-      });
-
-      if (!order) {
-        return res.status(404).json({ error: "Orden no encontrada" });
-      }
-
-      res.json(order);
-    } catch (error) {
-      console.error('Error fetching order:', error);
-      res.status(500).json({ error: "Error interno del servidor" });
-    }
-  } else if (req.method === 'PUT') {
-    try {
-      const { estado, numero_seguimiento } = req.body;
-
-      const updatedOrder = await prisma.pedido.update({
-        where: { pedido_id: id },
-        data: {
-          ...(estado && { estado }),
-          ...(numero_seguimiento && { numero_seguimiento }),
-          fecha_actualizacion: new Date()
+      },
+      pagos: {
+        orderBy: {
+          fecha_creacion: 'desc'
         }
-      });
-
-      res.json(updatedOrder);
-    } catch (error) {
-      console.error('Error updating order:', error);
-      res.status(500).json({ error: "Error interno del servidor" });
+      },
+      usos_cupon: {
+        include: {
+          cupon: true
+        }
+      }
     }
-  } else {
-    res.status(405).json({ error: "Método no permitido" });
+  });
+
+  if (!order) {
+    return res.status(404).json({ error: "Orden no encontrada" });
   }
+
+  res.json(order);
+}
+
+// PUT - Actualizar orden
+async function handlePut(req, res, id) {
+  const { estado, numero_seguimiento, estado_pago } = req.body;
+
+  // Validar que la orden existe
+  const existingOrder = await prisma.pedido.findUnique({
+    where: { pedido_id: id }
+  });
+
+  if (!existingOrder) {
+    return res.status(404).json({ error: "Orden no encontrada" });
+  }
+
+  const updateData = {
+    fecha_actualizacion: new Date()
+  };
+
+  // Solo actualizar campos que se envían
+  if (estado !== undefined) {
+    updateData.estado = estado;
+    
+    // Actualizaciones automáticas basadas en estado
+    if (estado === 'confirmado') {
+      updateData.fecha_confirmacion = new Date();
+    } else if (estado === 'enviado') {
+      updateData.fecha_envio = new Date();
+    } else if (estado === 'entregado') {
+      updateData.fecha_entrega = new Date();
+      updateData.estado_fulfillment = 'completado';
+    } else if (estado === 'cancelado') {
+      updateData.fecha_cancelacion = new Date();
+    }
+  }
+
+  if (numero_seguimiento !== undefined) {
+    updateData.numero_seguimiento = numero_seguimiento;
+  }
+
+  if (estado_pago !== undefined) {
+    updateData.estado_pago = estado_pago;
+    
+    if (estado_pago === 'pagado') {
+      updateData.fecha_pago = new Date();
+    }
+  }
+
+  const updatedOrder = await prisma.pedido.update({
+    where: { pedido_id: id },
+    data: updateData,
+    include: {
+      usuario: {
+        include: {
+          perfil_usuario: true
+        }
+      },
+      direccion_facturacion: true,
+      direccion_envio: true,
+      metodo_envio: true,
+      items: {
+        include: {
+          producto: {
+            select: {
+              nombre: true,
+              sku: true,
+              url_imagen_principal: true
+            }
+          }
+        }
+      }
+    }
+  });
+
+  res.json(updatedOrder);
+}
+
+// POST - Acciones específicas
+async function handlePost(req, res, id, session) {
+  const { action } = req.body;
+
+  if (!action) {
+    return res.status(400).json({ error: "Acción no especificada" });
+  }
+
+  // Validar que la orden existe
+  const existingOrder = await prisma.pedido.findUnique({
+    where: { pedido_id: id }
+  });
+
+  if (!existingOrder) {
+    return res.status(404).json({ error: "Orden no encontrada" });
+  }
+
+  const updateData = {
+    fecha_actualizacion: new Date()
+  };
+
+  switch (action) {
+    case 'confirmar_venta':
+      updateData.estado = 'confirmado';
+      updateData.estado_pago = 'pagado';
+      updateData.fecha_confirmacion = new Date();
+      updateData.fecha_pago = new Date();
+      
+      // Crear pago automáticamente
+      try {
+        await prisma.pago.create({
+          data: {
+            pedido_id: id,
+            monto: existingOrder.monto_total || 0,
+            estado: 'pagado',
+            moneda: existingOrder.moneda || 'MXN',
+            respuesta_pasarela: { 
+              metodo: 'confirmacion_manual',
+              admin: session.user.email || 'sistema',
+              fecha: new Date().toISOString()
+            }
+          }
+        });
+      } catch (paymentError) {
+        console.error('Error creando pago:', paymentError);
+        // Continuar aunque falle la creación del pago
+      }
+      break;
+
+    case 'marcar_como_pagado':
+      updateData.estado_pago = 'pagado';
+      updateData.fecha_pago = new Date();
+      
+      // Crear pago si no existe
+      try {
+        const existingPayment = await prisma.pago.findFirst({
+          where: { pedido_id: id }
+        });
+        
+        if (!existingPayment) {
+          await prisma.pago.create({
+            data: {
+              pedido_id: id,
+              monto: existingOrder.monto_total || 0,
+              estado: 'pagado',
+              moneda: existingOrder.moneda || 'MXN',
+              respuesta_pasarela: { 
+                metodo: 'marcado_manual',
+                admin: session.user.email || 'sistema',
+                fecha: new Date().toISOString()
+              }
+            }
+          });
+        }
+      } catch (paymentError) {
+        console.error('Error creando pago:', paymentError);
+      }
+      break;
+
+    case 'marcar_como_enviado':
+      updateData.estado = 'enviado';
+      updateData.fecha_envio = new Date();
+      break;
+
+    case 'marcar_como_entregado':
+      updateData.estado = 'entregado';
+      updateData.estado_fulfillment = 'completado';
+      updateData.fecha_entrega = new Date();
+      break;
+
+    case 'cancelar_orden':
+      updateData.estado = 'cancelado';
+      updateData.fecha_cancelacion = new Date();
+      break;
+
+    default:
+      return res.status(400).json({ error: "Acción no válida" });
+  }
+
+  const updatedOrder = await prisma.pedido.update({
+    where: { pedido_id: id },
+    data: updateData,
+    include: {
+      usuario: {
+        include: {
+          perfil_usuario: true
+        }
+      },
+      direccion_facturacion: true,
+      direccion_envio: true,
+      metodo_envio: true,
+      items: {
+        include: {
+          producto: {
+            select: {
+              nombre: true,
+              sku: true,
+              url_imagen_principal: true
+            }
+          }
+        }
+      },
+      pagos: {
+        orderBy: {
+          fecha_creacion: 'desc'
+        }
+      }
+    }
+  });
+
+  res.json({
+    success: true,
+    order: updatedOrder,
+    message: `Orden ${action.replace(/_/g, ' ')} exitosamente`
+  });
 }
