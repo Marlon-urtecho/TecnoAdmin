@@ -39,7 +39,8 @@ export default function UserEdit() {
     }
 
     // Verificar permisos de admin
-    if (!session.user.isAdmin) {
+    const isAdmin = session.user.isAdmin || session.user.es_superusuario || session.user.es_personal
+    if (!isAdmin) {
       router.push('/unauthorized')
       return
     }
@@ -127,42 +128,84 @@ export default function UserEdit() {
     }
 
     setSaving(true)
+    setErrors({})
 
     try {
       const url = '/api/users'
       const method = isEditing ? 'PUT' : 'POST'
 
-      // Preparar datos para enviar (excluir confirmPassword)
-      const { confirmPassword, ...submitData } = formData
+      // Preparar datos para enviar
+      const { confirmPassword, usuario_id, ...submitData } = formData
+      
+      // Si es edición, incluir el usuario_id
+      const finalData = isEditing ? { usuario_id, ...submitData } : submitData
+
+      // Si es edición y no hay password, eliminar el campo password
+      if (isEditing && !formData.password) {
+        delete finalData.password
+      }
+
+      console.log('Enviando datos a la API:', finalData)
+
+      // Agregar timeout para evitar que se quede colgado
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos timeout
 
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(submitData)
+        body: JSON.stringify(finalData),
+        signal: controller.signal
       })
 
+      clearTimeout(timeoutId)
+
+      console.log('Respuesta de la API:', response.status, response.statusText)
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error)
+        let errorMessage = 'Error del servidor'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+          console.error('Error detallado:', errorData)
+        } catch (parseError) {
+          console.error('Error parseando respuesta:', parseError)
+          errorMessage = `Error ${response.status}: ${response.statusText}`
+        }
+        throw new Error(errorMessage)
       }
 
+      const result = await response.json()
+      console.log('Respuesta exitosa:', result)
+      
       alert(isEditing ? 'Usuario actualizado correctamente' : 'Usuario creado correctamente')
-      router.push('/admin/users')
+      
+      // Redirigir a la lista de usuarios
+      router.push('/users')
+      
     } catch (error) {
-      console.error('Error:', error)
-      alert(error.message || 'Error al guardar usuario')
+      console.error('Error completo:', error)
+      
+      if (error.name === 'AbortError') {
+        alert('La solicitud tardó demasiado tiempo. Por favor, intenta nuevamente.')
+      } else {
+        alert(error.message || 'Error al guardar usuario')
+      }
+      
+      // Mostrar error en el formulario
+      setErrors({ submit: error.message })
     } finally {
       setSaving(false)
     }
   }
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target
+    const { name, value, type, checked } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? e.target.checked : value
+      [name]: type === 'checkbox' ? checked : value
     }))
     
     // Limpiar error del campo cuando el usuario empiece a escribir
@@ -174,7 +217,69 @@ export default function UserEdit() {
     }
   }
 
-  if (status === 'loading' || loading) {
+  // También necesitamos verificar tu API. Aquí hay una versión mejorada del endpoint PUT:
+
+  /*
+  // En tu API (/api/users), asegúrate de que el método PUT esté bien implementado:
+  if (method === 'PUT') {
+    const {
+      usuario_id,
+      correo_electronico,
+      password,
+      numero_telefono,
+      esta_activo,
+      es_personal,
+      es_superusuario,
+      nombres,
+      apellidos,
+      fecha_nacimiento,
+      genero,
+      url_avatar,
+      suscrito_boletin,
+      acepta_marketing
+    } = req.body
+
+    try {
+      // Actualizar usuario
+      const updatedUser = await prisma.usuario.update({
+        where: { usuario_id },
+        data: {
+          correo_electronico,
+          numero_telefono: numero_telefono || null,
+          esta_activo,
+          es_personal,
+          es_superusuario,
+          perfil_usuario: {
+            update: {
+              nombres,
+              apellidos,
+              fecha_nacimiento: fecha_nacimiento ? new Date(fecha_nacimiento) : null,
+              genero,
+              url_avatar: url_avatar || null,
+              suscrito_boletin,
+              acepta_marketing
+            }
+          }
+        },
+        include: {
+          perfil_usuario: true
+        }
+      })
+
+      const { hash_contrasena, ...userWithoutPassword } = updatedUser
+      res.json({
+        success: true,
+        data: userWithoutPassword,
+        message: 'Usuario actualizado correctamente'
+      })
+    } catch (error) {
+      console.error('Error actualizando usuario:', error)
+      res.status(500).json({ error: 'Error al actualizar usuario' })
+    }
+  }
+  */
+
+  if (status === 'loading' || (isEditing && loading)) {
     return (
       <Layout>
         <div className="flex justify-center items-center min-h-screen">
@@ -190,7 +295,7 @@ export default function UserEdit() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <button
-              onClick={() => router.push('/admin/users')}
+              onClick={() => router.push('/users')}
               className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
             >
               ← Volver a la lista de usuarios
@@ -282,49 +387,52 @@ export default function UserEdit() {
             </div>
 
             {/* Contraseña */}
-            {!isEditing && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4 text-gray-800">Contraseña</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Contraseña *
-                    </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      required={!isEditing}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.password ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    />
-                    {errors.password && (
-                      <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Confirmar Contraseña *
-                    </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      required={!isEditing}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    />
-                    {errors.confirmPassword && (
-                      <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
-                    )}
-                  </div>
+            <div>
+              <h2 className="text-xl font-semibold mb-4 text-gray-800">Contraseña</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Contraseña {!isEditing && '*'}
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder={isEditing ? "Dejar vacío para no cambiar" : ""}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.password ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.password && (
+                    <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+                  )}
+                  {isEditing && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      Solo llenar si deseas cambiar la contraseña
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar Contraseña {!isEditing && '*'}
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder={isEditing ? "Dejar vacío para no cambiar" : ""}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.confirmPassword && (
+                    <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Información Adicional */}
             <div>
@@ -355,7 +463,6 @@ export default function UserEdit() {
                     <option value="">Seleccionar...</option>
                     <option value="masculino">Masculino</option>
                     <option value="femenino">Femenino</option>
-                    <option value="otro">Otro</option>
                     <option value="prefiere_no_decir">Prefiero no decir</option>
                   </select>
                 </div>
@@ -438,11 +545,18 @@ export default function UserEdit() {
               </div>
             </div>
 
+            {/* Error general */}
+            {errors.submit && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-red-700 text-sm">{errors.submit}</p>
+              </div>
+            )}
+
             {/* Botones */}
             <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
               <button
                 type="button"
-                onClick={() => router.push('/admin/users')}
+                onClick={() => router.push('/users')}
                 className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition duration-150"
               >
                 Cancelar
@@ -450,8 +564,11 @@ export default function UserEdit() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition duration-150"
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition duration-150 flex items-center gap-2"
               >
+                {saving && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                )}
                 {saving ? 'Guardando...' : isEditing ? 'Actualizar Usuario' : 'Crear Usuario'}
               </button>
             </div>

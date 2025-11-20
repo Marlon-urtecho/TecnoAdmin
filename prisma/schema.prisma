@@ -12,7 +12,6 @@ datasource db {
 enum TipoGenero {
   masculino
   femenino
-  otro
   prefiere_no_decir
 }
 

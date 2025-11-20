@@ -25,8 +25,8 @@ export default function UsersAdmin() {
       return
     }
 
-    // Verificar si es admin
-    if (!session.user.isAdmin) {
+    // Verificar si es admin - CORREGIDO: usar la propiedad correcta
+    if (!session.user.isAdmin && !session.user.es_superusuario) {
       router.push('/unauthorized')
       return
     }
@@ -37,28 +37,64 @@ export default function UsersAdmin() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...(search && { search }),
-        ...(statusFilter !== 'all' && { status: statusFilter })
-      })
+      
+      // Construir parámetros de consulta
+      const params = new URLSearchParams()
+      if (search) params.append('search', search)
+      if (statusFilter !== 'all') params.append('status', statusFilter)
+      
+      // Nota: Tu API actual probablemente no soporta paginación, 
+      // así que no enviamos page/limit por ahora
+      // params.append('page', pagination.page)
+      // params.append('limit', pagination.limit)
 
-      const response = await fetch(`/api/users?${queryParams}`)
+      const queryString = params.toString()
+      const url = queryString ? `/api/users?${queryString}` : '/api/users'
+
+      const response = await fetch(url)
       
       if (!response.ok) {
         throw new Error('Error al cargar usuarios')
       }
 
       const data = await response.json()
-      setUsers(data.users)
-      setPagination(data.pagination)
+      
+      // ADAPTACIÓN: Tu API probablemente devuelve { users: [], total: number }
+      // en lugar de { users: [], pagination: {} }
+      if (data.users) {
+        setUsers(data.users)
+        
+        // Calcular paginación basada en los datos recibidos
+        const total = data.total || data.users.length
+        const totalPages = Math.ceil(total / pagination.limit)
+        
+        setPagination(prev => ({
+          ...prev,
+          total: total,
+          totalPages: totalPages
+        }))
+      } else {
+        // Si la API devuelve un array directamente
+        setUsers(data)
+        setPagination(prev => ({
+          ...prev,
+          total: data.length,
+          totalPages: Math.ceil(data.length / prev.limit)
+        }))
+      }
     } catch (error) {
       console.error('Error:', error)
       alert('Error al cargar usuarios')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Función para obtener usuarios paginados del array completo
+  const getPaginatedUsers = () => {
+    const startIndex = (pagination.page - 1) * pagination.limit
+    const endIndex = startIndex + pagination.limit
+    return users.slice(startIndex, endIndex)
   }
 
   const handleDelete = async (userId, userEmail) => {
@@ -132,6 +168,9 @@ export default function UsersAdmin() {
       </Layout>
     )
   }
+
+  // Obtener usuarios para la página actual
+  const displayedUsers = getPaginatedUsers()
 
   return (
     <Layout title="Admin - Gestión de Usuarios">
@@ -218,7 +257,7 @@ export default function UsersAdmin() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
               Cargando usuarios...
             </div>
-          ) : users.length === 0 ? (
+          ) : displayedUsers.length === 0 ? (
             <div className="p-8 text-center text-gray-600">
               No se encontraron usuarios
             </div>
@@ -249,7 +288,7 @@ export default function UsersAdmin() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((user) => (
+                    {displayedUsers.map((user) => (
                       <tr key={user.usuario_id} className="hover:bg-gray-50 transition duration-150">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -341,7 +380,7 @@ export default function UsersAdmin() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           <button
-                            onClick={() => router.push(`/admin/users/${user.usuario_id}`)}
+                            onClick={() => router.push(`/users/${user.usuario_id}`)}
                             className="text-blue-600 hover:text-blue-900 transition duration-150"
                             title="Editar usuario"
                           >

@@ -1,26 +1,65 @@
+// pages/api/orders.js
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 
+// Funciones auxiliares para colores de estado
+function getEstadoColor(estado) {
+  const colors = {
+    pendiente: 'orange',
+    confirmado: 'blue',
+    procesando: 'purple',
+    enviado: 'teal',
+    entregado: 'green',
+    cancelado: 'red',
+    reembolsado: 'gray'
+  };
+  return colors[estado] || 'gray';
+}
+
+function getEstadoPagoColor(estadoPago) {
+  const colors = {
+    pendiente: 'orange',
+    procesando: 'blue',
+    pagado: 'green',
+    fallido: 'red',
+    reembolsado: 'gray',
+    parcialmente_reembolsado: 'yellow'
+  };
+  return colors[estadoPago] || 'gray';
+}
+
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Método no permitido' });
+  // Verificar autenticación y permisos de admin
+  const session = await getServerSession(req, res, authOptions);
+  
+  if (!session) {
+    return res.status(401).json({ error: "No autenticado" });
+  }
+  
+  // Verificación más robusta:
+  const isAdmin = session.user.isAdmin || 
+              session.user.es_superusuario || 
+              session.user.es_personal || 
+              session.user.email === 'urtechoalex065@gmail.com';
+
+  if (!isAdmin) {
+        return res.status(403).json({ error: "No autorizado - Se requieren permisos de administrador" });
   }
 
-  try {
-    // Verificar autenticación y permisos de admin
-    const session = await getServerSession(req, res, authOptions);
-    
-    if (!session) {
-      return res.status(401).json({ error: "No autenticado" });
-    }
-    
-    // Verificar si es admin basado en el email
-    const adminEmails = ['urtechoalex065@gmail.com'];
-    if (!adminEmails.includes(session.user.email)) {
-      return res.status(403).json({ error: "No autorizado" });
-    }
+  // Manejar diferentes métodos HTTP
+  if (req.method === 'GET') {
+    await handleGetRequest(req, res);
+  } else if (req.method === 'POST') {
+    await handlePostRequest(req, res);
+  } else {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
+}
 
+// Manejar GET - Obtener todas las órdenes
+async function handleGetRequest(req, res) {
+  try {
     // Obtener todas las órdenes con información relacionada
     const orders = await prisma.pedido.findMany({
       include: {
@@ -255,28 +294,140 @@ export default async function handler(req, res) {
   }
 }
 
-// Funciones auxiliares para colores de estado (puedes personalizar)
-function getEstadoColor(estado) {
-  const colors = {
-    pendiente: 'orange',
-    confirmado: 'blue',
-    procesando: 'purple',
-    enviado: 'teal',
-    entregado: 'green',
-    cancelado: 'red',
-    reembolsado: 'gray'
-  };
-  return colors[estado] || 'gray';
-}
+// Manejar POST - Crear nueva orden
+async function handlePostRequest(req, res) {
+  try {
+    const {
+      correo_cliente,
+      telefono_cliente,
+      nombre_destinatario,
+      linea_direccion1,
+      linea_direccion2,
+      ciudad,
+      estado_provincia,
+      codigo_postal,
+      codigo_pais,
+      productos,
+      monto_descuento = 0,
+      subtotal_items,
+      monto_total
+    } = req.body;
 
-function getEstadoPagoColor(estadoPago) {
-  const colors = {
-    pendiente: 'orange',
-    procesando: 'blue',
-    pagado: 'green',
-    fallido: 'red',
-    reembolsado: 'gray',
-    parcialmente_reembolsado: 'yellow'
-  };
-  return colors[estadoPago] || 'gray';
+    // Validaciones básicas
+    if (!correo_cliente || !nombre_destinatario || !linea_direccion1 || !ciudad || !codigo_postal) {
+      return res.status(400).json({ error: "Faltan campos requeridos" });
+    }
+
+    // Validar productos
+    if (!productos || !Array.isArray(productos) || productos.length === 0) {
+      return res.status(400).json({ error: "Debe agregar al menos un producto" });
+    }
+
+    // Generar número de orden único
+    const numero_pedido = 'ORD-' + Date.now();
+
+    // Crear dirección de envío
+    const direccionEnvio = await prisma.direccion.create({
+      data: {
+        usuario_id: 'temp-user-id', // Necesitarás manejar esto mejor
+        tipo_direccion: 'envio',
+        nombre_destinatario,
+        linea_direccion1,
+        linea_direccion2: linea_direccion2 || '',
+        ciudad,
+        estado_provincia: estado_provincia || '',
+        codigo_postal,
+        codigo_pais
+      }
+    });
+
+    // Crear la orden
+    const order = await prisma.pedido.create({
+      data: {
+        numero_pedido,
+        correo_cliente,
+        telefono_cliente: telefono_cliente || '',
+        direccion_facturacion_id: direccionEnvio.direccion_id,
+        direccion_envio_id: direccionEnvio.direccion_id,
+        subtotal_items: subtotal_items || 0,
+        costo_envio: 0,
+        monto_impuestos: 0,
+        monto_descuento: monto_descuento || 0,
+        monto_total: monto_total || 0,
+        usuario_id: null, // O el ID del usuario si está registrado
+        estado: 'pendiente',
+        estado_pago: 'pendiente',
+        estado_fulfillment: 'no_completado'
+      },
+      include: {
+        items: true,
+        direccion_envio: true,
+        direccion_facturacion: true
+      }
+    });
+
+    // Crear items de la orden
+    for (const producto of productos) {
+      if (producto.producto_id && producto.cantidad > 0) {
+        // Obtener información del producto desde la base de datos
+        const productInfo = await prisma.producto.findUnique({
+          where: { producto_id: producto.producto_id },
+          select: { nombre: true, sku: true }
+        });
+
+        await prisma.itemPedido.create({
+          data: {
+            pedido_id: order.pedido_id,
+            producto_id: producto.producto_id,
+            variante_id: producto.variante_id || null,
+            nombre_producto: productInfo?.nombre || 'Producto',
+            sku_producto: productInfo?.sku || 'SKU',
+            cantidad: producto.cantidad,
+            precio_unitario: producto.precio_unitario,
+            precio_total: producto.cantidad * producto.precio_unitario,
+            atributos_variante: producto.atributos || {}
+          }
+        });
+      }
+    }
+
+    // Obtener la orden completa con todos los datos
+    const completeOrder = await prisma.pedido.findUnique({
+      where: { pedido_id: order.pedido_id },
+      include: {
+        items: {
+          include: {
+            producto: {
+              select: {
+                nombre: true,
+                sku: true,
+                url_imagen_principal: true
+              }
+            },
+            variante: {
+              select: {
+                nombre_variante: true,
+                sku: true
+              }
+            }
+          }
+        },
+        direccion_envio: true,
+        direccion_facturacion: true
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      order: completeOrder,
+      message: 'Orden creada exitosamente'
+    });
+
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res.status(500).json({ 
+      error: "Error interno del servidor",
+      details: error.message 
+    });
+  }
 }

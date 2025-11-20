@@ -17,9 +17,14 @@ export default async function handle(req, res) {
     //verificar Emails 
     
     // Verificar si es admin basado en el email
-    const adminEmails = ['urtechoalex065@gmail.com'];
-    if (!adminEmails.includes(session.user.email)) {
-      return res.status(403).json({ error: "No autorizado" });
+   // Por esta verificación más robusta:
+    const isAdmin = session.user.isAdmin || 
+                session.user.es_superusuario || 
+                session.user.es_personal || 
+                session.user.email === 'urtechoalex065@gmail.com';
+
+    if (!isAdmin) {
+          return res.status(403).json({ error: "No autorizado - Se requieren permisos de administrador" });
     }
 
     if (method === 'GET') {

@@ -73,7 +73,7 @@ export default function Home() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { name: "Agregar Producto", icon: "➕", color: "blue" },
-            { name: "Ver Reportes", icon: "📊", color: "green" },
+            { name: "Ver Reportes", icon: "📊", color: "green", href: "/reportes-inventario" },
             { name: "Gestionar Stock", icon: "📦", color: "orange" },
             { name: "Configuración", icon: "⚙️", color: "purple" }
           ].map((action, index) => (
