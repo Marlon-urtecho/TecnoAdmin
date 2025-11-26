@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import axios from "axios";
-import Spinner from "@/components/Spinner";
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import { ReactSortable } from "react-sortablejs";
 
 export default function ProductForm({
@@ -64,6 +63,8 @@ export default function ProductForm({
   const [categorias, setCategorias] = useState([]);
   const [marcas, setMarcas] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [uploadError, setUploadError] = useState("");
+  const [newImageUrl, setNewImageUrl] = useState(""); // Estado para la nueva URL
   const router = useRouter();
 
   useEffect(() => {
@@ -78,6 +79,8 @@ export default function ProductForm({
     if (!slug && nombre) {
       const generatedSlug = nombre
         .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '');
       setSlug(generatedSlug);
@@ -86,34 +89,37 @@ export default function ProductForm({
 
   async function saveProduct(ev) {
     ev.preventDefault();
+    setUploadError("");
     
     const data = {
       nombre,
       descripcion,
       descripcion_corta,
-      precio_base: parseFloat(precio_base),
+      precio_base: parseFloat(precio_base) || 0,
       precio_comparacion: precio_comparacion ? parseFloat(precio_comparacion) : null,
       precio_costo: precio_costo ? parseFloat(precio_costo) : null,
       sku,
       slug,
       categoria_id,
       marca_id,
-      proveedor_id,
-      imagenes,
+      proveedor_id: proveedor_id || null,
+      imagenes, // Ahora enviamos directamente el array de URLs
       controlar_inventario,
       permitir_pedidos_agotados,
-      umbral_stock_bajo: parseInt(umbral_stock_bajo),
+      umbral_stock_bajo: parseInt(umbral_stock_bajo) || 5,
       peso_gramos: peso_gramos ? parseInt(peso_gramos) : null,
       dimensiones,
       atributos,
       especificaciones,
-      url_imagen_principal: url_imagen_principal || (imagenes.length > 0 ? imagenes[0] : null),
+      url_imagen_principal: url_imagen_principal || (imagenes.length > 0 ? imagenes[0] : ""),
       es_destacado,
       esta_activo,
       es_digital,
       meta_titulo,
       meta_descripcion,
     };
+
+    console.log("Enviando datos:", data);
 
     try {
       if (producto_id) {
@@ -124,7 +130,8 @@ export default function ProductForm({
       setGoToProducts(true);
     } catch (err) {
       console.error("Error saving product:", err);
-      alert("Error al guardar el producto: " + (err.response?.data?.error || err.message));
+      const errorMessage = err.response?.data?.error || err.message || "Error desconocido";
+      alert("Error al guardar el producto: " + errorMessage);
     }
   }
 
@@ -133,25 +140,46 @@ export default function ProductForm({
     return null;
   }
 
-  async function uploadImages(ev) {
-    const files = ev.target?.files;
-    if (!files?.length) return;
-    setIsUploading(true);
-    const data = new FormData();
-    for (const file of files) data.append("file", file);
-    try {
-      const res = await axios.post("/api/upload", data);
-      setImagenes((oldImagenes) => [...oldImagenes, ...res.data.links]);
-    } catch (error) {
-      console.error("Error uploading images:", error);
-      alert("Error al subir las imágenes");
+  // Función para agregar URL de imagen
+  function addImageUrl() {
+    if (!newImageUrl.trim()) {
+      setUploadError("Por favor ingresa una URL válida");
+      return;
     }
-    setIsUploading(false);
+
+    // Validar que sea una URL válida
+    try {
+      new URL(newImageUrl);
+    } catch (e) {
+      setUploadError("Por favor ingresa una URL válida");
+      return;
+    }
+
+    setImagenes((oldImagenes) => [...oldImagenes, newImageUrl.trim()]);
+    setNewImageUrl("");
+    setUploadError("");
   }
 
-  function updateImagesOrder(imagenes) {
-    setImagenes(imagenes);
+  function updateImagesOrder(newImagenes) {
+    setImagenes(newImagenes);
   }
+
+  function removeImage(imageToRemove) {
+    setImagenes(imagenes.filter(img => img !== imageToRemove));
+  }
+
+  // Función para manejar campos JSON
+  const handleJsonField = (field, key, value) => {
+    const currentField = field === 'dimensiones' ? dimensiones : 
+                        field === 'atributos' ? atributos : especificaciones;
+    const setter = field === 'dimensiones' ? setDimensiones :
+                   field === 'atributos' ? setAtributos : setEspecificaciones;
+    
+    setter({
+      ...currentField,
+      [key]: value
+    });
+  };
 
   return (
     <form onSubmit={saveProduct} className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg space-y-6">
@@ -254,6 +282,7 @@ export default function ProductForm({
           <input
             type="number"
             step="0.01"
+            min="0"
             value={precio_base}
             onChange={(ev) => setPrecioBase(ev.target.value)}
             placeholder="0.00"
@@ -267,6 +296,7 @@ export default function ProductForm({
           <input
             type="number"
             step="0.01"
+            min="0"
             value={precio_comparacion}
             onChange={(ev) => setPrecioComparacion(ev.target.value)}
             placeholder="0.00"
@@ -279,6 +309,7 @@ export default function ProductForm({
           <input
             type="number"
             step="0.01"
+            min="0"
             value={precio_costo}
             onChange={(ev) => setPrecioCosto(ev.target.value)}
             placeholder="0.00"
@@ -310,48 +341,90 @@ export default function ProductForm({
         />
       </div>
 
-      {/* Imágenes */}
-      <div className="space-y-1">
-        <label className="font-medium text-gray-700">Imágenes del Producto</label>
+      {/* Imágenes - VERSIÓN CON URLs */}
+      <div className="space-y-3">
+        <label className="font-medium text-gray-700">Imágenes del Producto (URLs)</label>
+        
+        {uploadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {uploadError}
+          </div>
+        )}
+        
+        {/* Input para agregar URLs */}
+        <div className="flex gap-2">
+          <input
+            type="url"
+            placeholder="https://ejemplo.com/imagen.jpg"
+            value={newImageUrl}
+            onChange={(ev) => setNewImageUrl(ev.target.value)}
+            className="flex-1 p-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-300 transition"
+          />
+          <button
+            type="button"
+            onClick={addImageUrl}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium transition-colors"
+          >
+            Agregar URL
+          </button>
+        </div>
+        
+        {/* Galería de imágenes */}
         <div className="flex flex-wrap gap-3">
-          <ReactSortable list={imagenes} setList={updateImagesOrder} className="flex flex-wrap gap-3">
-            {imagenes.map((link) => (
+          <ReactSortable 
+            list={imagenes} 
+            setList={updateImagesOrder} 
+            className="flex flex-wrap gap-3"
+          >
+            {imagenes.map((link, index) => (
               <div
                 key={link}
-                className="w-28 h-28 border border-gray-300 rounded-lg overflow-hidden shadow-sm relative"
+                className="relative group"
               >
-                <img src={link} alt="" className="object-cover w-full h-full" />
+                <div className="w-28 h-28 border border-gray-300 rounded-lg overflow-hidden shadow-sm bg-gray-50">
+                  <img 
+                    src={link} 
+                    alt={`Imagen ${index + 1}`} 
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='12' fill='%239ca3af'%3EImagen no disponible%3C/text%3E%3C/svg%3E";
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeImage(link)}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  title="Eliminar imagen"
+                >
+                  ×
+                </button>
+                {index === 0 && (
+                  <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                    Principal
+                  </div>
+                )}
               </div>
             ))}
           </ReactSortable>
 
-          {isUploading && (
-            <div className="w-28 h-28 flex items-center justify-center border border-gray-300 rounded-lg bg-gray-50">
-              <Spinner />
+          {imagenes.length === 0 && (
+            <div className="w-full text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+              <svg className="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p>No hay imágenes agregadas</p>
+              <p className="text-sm">Usa el campo de arriba para agregar URLs de imágenes</p>
             </div>
           )}
-
-          <label className="w-28 h-28 cursor-pointer flex flex-col items-center justify-center text-gray-500 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:text-blue-500 transition">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6 mb-1"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-              />
-            </svg>
-            <span className="text-xs text-center">Agregar Imagen</span>
-            <input type="file" onChange={uploadImages} className="hidden" multiple accept="image/*" />
-          </label>
         </div>
+        
+        <p className="text-sm text-gray-500">
+          Arrastra para reordenar las imágenes. La primera imagen será la principal.
+        </p>
       </div>
 
+      {/* Resto del formulario se mantiene igual */}
       {/* Inventario y Físico */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
@@ -381,6 +454,7 @@ export default function ProductForm({
             <label className="font-medium text-gray-700">Umbral de stock bajo</label>
             <input
               type="number"
+              min="0"
               value={umbral_stock_bajo}
               onChange={(ev) => setUmbralStockBajo(ev.target.value)}
               className="w-full p-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-300 transition"
@@ -395,6 +469,7 @@ export default function ProductForm({
             <label className="font-medium text-gray-700">Peso (gramos)</label>
             <input
               type="number"
+              min="0"
               value={peso_gramos}
               onChange={(ev) => setPesoGramos(ev.target.value)}
               placeholder="0"

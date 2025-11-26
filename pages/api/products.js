@@ -1,30 +1,49 @@
-// pages/api/products.js
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "./auth/[...nextauth]";
 
+// Función helper para extraer la URL de la imagen - MOVER AQUÍ AL NIVEL SUPERIOR
+function getImageUrl(imagen) {
+  if (typeof imagen === 'string') {
+    return imagen;
+  }
+  if (imagen && typeof imagen === 'object') {
+    // Si es un objeto de ImagenProducto, extraer url_imagen
+    if (imagen.url_imagen) {
+      return typeof imagen.url_imagen === 'string' ? imagen.url_imagen : imagen.url_imagen.url_imagen;
+    }
+    // Si es un objeto con propiedad url_imagen anidada
+    if (imagen.url_imagen && typeof imagen.url_imagen === 'object' && imagen.url_imagen.url_imagen) {
+      return imagen.url_imagen.url_imagen;
+    }
+    // Si el objeto tiene directamente la propiedad que es la URL
+    if (imagen.url) {
+      return imagen.url;
+    }
+  }
+  console.warn('⚠️ No se pudo extraer URL de imagen:', imagen);
+  return null;
+}
+
 export default async function handle(req, res) {
   const { method } = req;
-  
+
   try {
     // Verificar autenticación y permisos de admin
     const session = await getServerSession(req, res, authOptions);
-    
+
     if (!session) {
       return res.status(401).json({ error: "No autenticado" });
     }
 
-    //verificar Emails 
-    
-    // Verificar si es admin basado en el email
-   // Por esta verificación más robusta:
-    const isAdmin = session.user.isAdmin || 
-                session.user.es_superusuario || 
-                session.user.es_personal || 
-                session.user.email === 'urtechoalex065@gmail.com';
+    // Verificar si es admin
+    const isAdmin = session.user.isAdmin ||
+      session.user.es_superusuario ||
+      session.user.es_personal ||
+      session.user.email === 'urtechoalex065@gmail.com';
 
     if (!isAdmin) {
-          return res.status(403).json({ error: "No autorizado - Se requieren permisos de administrador" });
+      return res.status(403).json({ error: "No autorizado - Se requieren permisos de administrador" });
     }
 
     if (method === 'GET') {
@@ -92,13 +111,13 @@ export default async function handle(req, res) {
         const products = await prisma.producto.findMany({
           include: {
             categoria: {
-              select: { 
+              select: {
                 nombre: true,
                 slug: true
               }
             },
             marca: {
-              select: { 
+              select: {
                 nombre: true,
                 url_logo: true
               }
@@ -137,8 +156,15 @@ export default async function handle(req, res) {
         precio_comparacion, precio_costo, controlar_inventario,
         permitir_pedidos_agotados, umbral_stock_bajo, peso_gramos,
         dimensiones, atributos, especificaciones, url_imagen_principal,
-        es_destacado, esta_activo, es_digital, meta_titulo, meta_descripcion
+        es_destacado, esta_activo, es_digital, meta_titulo, meta_descripcion,
+        imagenes // Array de imágenes que viene del formulario
       } = req.body;
+
+      console.log("Datos recibidos en POST:", {
+        sku, nombre, slug,
+        imagenesCount: imagenes?.length,
+        imagenes: imagenes
+      });
 
       // Verificar si el SKU ya existe
       const existingSku = await prisma.producto.findUnique({
@@ -158,47 +184,80 @@ export default async function handle(req, res) {
         return res.status(400).json({ error: 'El slug ya existe' });
       }
 
-      const productDoc = await prisma.producto.create({
-        data: {
-          sku,
-          nombre,
-          slug,
-          descripcion: descripcion || null,
-          descripcion_corta: descripcion_corta || null,
-          categoria_id,
-          marca_id,
-          proveedor_id,
-          precio_base: parseFloat(precio_base),
-          precio_comparacion: precio_comparacion ? parseFloat(precio_comparacion) : null,
-          precio_costo: precio_costo ? parseFloat(precio_costo) : null,
-          controlar_inventario: controlar_inventario !== undefined ? controlar_inventario : true,
-          permitir_pedidos_agotados: permitir_pedidos_agotados !== undefined ? permitir_pedidos_agotados : false,
-          umbral_stock_bajo: parseInt(umbral_stock_bajo) || 5,
-          peso_gramos: peso_gramos ? parseInt(peso_gramos) : null,
-          dimensiones: dimensiones || {},
-          atributos: atributos || {},
-          especificaciones: especificaciones || {},
-          url_imagen_principal: url_imagen_principal || null,
-          es_destacado: es_destacado !== undefined ? es_destacado : false,
-          esta_activo: esta_activo !== undefined ? esta_activo : true,
-          es_digital: es_digital !== undefined ? es_digital : false,
-          meta_titulo: meta_titulo || null,
-          meta_descripcion: meta_descripcion || null
+      // Crear el producto usando transacción para manejar imágenes
+      const result = await prisma.$transaction(async (prisma) => {
+        // 1. Crear el producto
+        const productDoc = await prisma.producto.create({
+          data: {
+            sku,
+            nombre,
+            slug,
+            descripcion: descripcion || null,
+            descripcion_corta: descripcion_corta || null,
+            categoria_id,
+            marca_id,
+            proveedor_id: proveedor_id || null,
+            precio_base: parseFloat(precio_base),
+            precio_comparacion: precio_comparacion ? parseFloat(precio_comparacion) : null,
+            precio_costo: precio_costo ? parseFloat(precio_costo) : null,
+            controlar_inventario: controlar_inventario !== undefined ? controlar_inventario : true,
+            permitir_pedidos_agotados: permitir_pedidos_agotados !== undefined ? permitir_pedidos_agotados : false,
+            umbral_stock_bajo: parseInt(umbral_stock_bajo) || 5,
+            peso_gramos: peso_gramos ? parseInt(peso_gramos) : null,
+            dimensiones: dimensiones || {},
+            atributos: atributos || {},
+            especificaciones: especificaciones || {},
+            url_imagen_principal: url_imagen_principal || (imagenes && imagenes.length > 0 ? getImageUrl(imagenes[0]) : null),
+            es_destacado: es_destacado !== undefined ? es_destacado : false,
+            esta_activo: esta_activo !== undefined ? esta_activo : true,
+            es_digital: es_digital !== undefined ? es_digital : false,
+            meta_titulo: meta_titulo || null,
+            meta_descripcion: meta_descripcion || null
+          }
+        });
+
+        // 2. Crear imágenes si existen
+        if (imagenes && Array.isArray(imagenes) && imagenes.length > 0) {
+          console.log("Creando imágenes:", imagenes);
+
+          for (let i = 0; i < imagenes.length; i++) {
+            const imagen = imagenes[i];
+            const imageUrl = getImageUrl(imagen);
+
+            if (!imageUrl) {
+              console.warn(`⚠️ Imagen ${i} no tiene URL válida:`, imagen);
+              continue;
+            }
+
+            console.log(`✅ Creando imagen ${i}:`, imageUrl);
+
+            await prisma.imagenProducto.create({
+              data: {
+                producto_id: productDoc.producto_id,
+                url_imagen: imageUrl,
+                orden: i,
+                es_principal: i === 0,
+                texto_alternativo: nombre
+              }
+            });
+          }
         }
+
+        // 3. Crear registro de inventario inicial
+        await prisma.inventario.create({
+          data: {
+            producto_id: productDoc.producto_id,
+            cantidad_stock: 0,
+            cantidad_reservada: 0,
+            cantidad_disponible: 0,
+            alerta_stock_bajo: false
+          }
+        });
+
+        return productDoc;
       });
 
-      // Crear registro de inventario inicial para el producto base
-      await prisma.inventario.create({
-        data: {
-          producto_id: productDoc.producto_id,
-          cantidad_stock: 0,
-          cantidad_reservada: 0,
-          cantidad_disponible: 0,
-          alerta_stock_bajo: false
-        }
-      });
-
-      res.json(productDoc);
+      res.json(result);
     }
 
     if (method === 'PUT') {
@@ -208,8 +267,15 @@ export default async function handle(req, res) {
         precio_comparacion, precio_costo, controlar_inventario,
         permitir_pedidos_agotados, umbral_stock_bajo, peso_gramos,
         dimensiones, atributos, especificaciones, url_imagen_principal,
-        es_destacado, esta_activo, es_digital, meta_titulo, meta_descripcion
+        es_destacado, esta_activo, es_digital, meta_titulo, meta_descripcion,
+        imagenes // Array de imágenes que viene del formulario
       } = req.body;
+
+      console.log("Datos recibidos en PUT:", {
+        producto_id, sku, nombre,
+        imagenesCount: imagenes?.length,
+        imagenes: imagenes
+      });
 
       // Verificar si el SKU ya existe (excluyendo el producto actual)
       const existingSku = await prisma.producto.findFirst({
@@ -239,36 +305,74 @@ export default async function handle(req, res) {
         return res.status(400).json({ error: 'El slug ya existe' });
       }
 
-      await prisma.producto.update({
-        where: { producto_id },
-        data: {
-          sku,
-          nombre,
-          slug,
-          descripcion: descripcion || null,
-          descripcion_corta: descripcion_corta || null,
-          categoria_id,
-          marca_id,
-          proveedor_id,
-          precio_base: parseFloat(precio_base),
-          precio_comparacion: precio_comparacion ? parseFloat(precio_comparacion) : null,
-          precio_costo: precio_costo ? parseFloat(precio_costo) : null,
-          controlar_inventario,
-          permitir_pedidos_agotados,
-          umbral_stock_bajo: parseInt(umbral_stock_bajo) || 5,
-          peso_gramos: peso_gramos ? parseInt(peso_gramos) : null,
-          dimensiones: dimensiones || {},
-          atributos: atributos || {},
-          especificaciones: especificaciones || {},
-          url_imagen_principal: url_imagen_principal || null,
-          es_destacado,
-          esta_activo,
-          es_digital,
-          meta_titulo: meta_titulo || null,
-          meta_descripcion: meta_descripcion || null,
-          fecha_actualizacion: new Date()
+      // Actualizar usando transacción
+      await prisma.$transaction(async (prisma) => {
+        // 1. Actualizar el producto
+        await prisma.producto.update({
+          where: { producto_id },
+          data: {
+            sku,
+            nombre,
+            slug,
+            descripcion: descripcion || null,
+            descripcion_corta: descripcion_corta || null,
+            categoria_id,
+            marca_id,
+            proveedor_id: proveedor_id || null,
+            precio_base: parseFloat(precio_base),
+            precio_comparacion: precio_comparacion ? parseFloat(precio_comparacion) : null,
+            precio_costo: precio_costo ? parseFloat(precio_costo) : null,
+            controlar_inventario,
+            permitir_pedidos_agotados,
+            umbral_stock_bajo: parseInt(umbral_stock_bajo) || 5,
+            peso_gramos: peso_gramos ? parseInt(peso_gramos) : null,
+            dimensiones: dimensiones || {},
+            atributos: atributos || {},
+            especificaciones: especificaciones || {},
+            url_imagen_principal: url_imagen_principal || (imagenes && imagenes.length > 0 ? getImageUrl(imagenes[0]) : null),
+            es_destacado,
+            esta_activo,
+            es_digital,
+            meta_titulo: meta_titulo || null,
+            meta_descripcion: meta_descripcion || null,
+            fecha_actualizacion: new Date()
+          }
+        });
+
+        // 2. Eliminar imágenes existentes y crear nuevas
+        if (imagenes && Array.isArray(imagenes)) {
+          console.log("Actualizando imágenes:", imagenes);
+
+          // Eliminar imágenes existentes
+          await prisma.imagenProducto.deleteMany({
+            where: { producto_id }
+          });
+
+          // Crear nuevas imágenes
+          for (let i = 0; i < imagenes.length; i++) {
+            const imagen = imagenes[i];
+            const imageUrl = getImageUrl(imagen);
+
+            if (!imageUrl) {
+              console.warn(`⚠️ Imagen ${i} no tiene URL válida:`, imagen);
+              continue;
+            }
+
+            console.log(`✅ Creando imagen ${i}:`, imageUrl);
+
+            await prisma.imagenProducto.create({
+              data: {
+                producto_id: producto_id,
+                url_imagen: imageUrl,
+                orden: i,
+                es_principal: i === 0,
+                texto_alternativo: nombre
+              }
+            });
+          }
         }
       });
+
       res.json(true);
     }
 
@@ -282,8 +386,8 @@ export default async function handle(req, res) {
         });
 
         if (orderItemsCount > 0) {
-          return res.status(400).json({ 
-            error: 'No se puede eliminar un producto con pedidos asociados' 
+          return res.status(400).json({
+            error: 'No se puede eliminar un producto con pedidos asociados'
           });
         }
 
@@ -293,8 +397,8 @@ export default async function handle(req, res) {
         });
 
         if (cartItemsCount > 0) {
-          return res.status(400).json({ 
-            error: 'No se puede eliminar un producto que está en carritos de compra' 
+          return res.status(400).json({
+            error: 'No se puede eliminar un producto que está en carritos de compra'
           });
         }
 
@@ -334,22 +438,22 @@ export default async function handle(req, res) {
     }
   } catch (error) {
     console.error('Error en API de productos:', error);
-    
+
     // Manejar errores específicos de Prisma
     if (error.code === 'P2002') {
-      return res.status(400).json({ 
-        error: 'El SKU o slug ya existe para otro producto' 
+      return res.status(400).json({
+        error: 'El SKU o slug ya existe para otro producto'
       });
     }
-    
+
     if (error.code === 'P2003') {
-      return res.status(400).json({ 
-        error: 'No se puede eliminar el producto debido a referencias existentes' 
+      return res.status(400).json({
+        error: 'No se puede eliminar el producto debido a referencias existentes'
       });
     }
-    
-    res.status(500).json({ 
-      error: error.message || 'Error interno del servidor' 
+
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
     });
   }
 }

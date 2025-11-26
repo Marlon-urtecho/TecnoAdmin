@@ -84,13 +84,13 @@ export default function OrderDetailPage() {
   const loadOrder = async () => {
     try {
       setError(null);
-      console.log('🔄 Cargando orden:', id);
+      console.log(' Cargando orden:', id);
       const response = await axios.get(`/api/orders/${id}`);
-      console.log('✅ Orden cargada:', response.data);
+      console.log(' Orden cargada:', response.data);
       setOrder(response.data);
     } catch (error) {
-      console.error('❌ Error loading order:', error);
-      console.error('📊 Detalles del error:', error.response?.data);
+      console.error(' Error loading order:', error);
+      console.error(' Detalles del error:', error.response?.data);
       setError('No se pudo cargar la orden');
     } finally {
       setLoading(false);
@@ -100,9 +100,9 @@ export default function OrderDetailPage() {
   const handleApiCall = async (apiCall, successMessage) => {
     setUpdating(true);
     try {
-      console.log('🔄 Ejecutando acción API...');
+      console.log(' Ejecutando acción API...');
       const response = await apiCall();
-      console.log('✅ Respuesta API:', response.data);
+      console.log(' Respuesta API:', response.data);
       
       // Actualizar la orden con los datos devueltos
       if (response.data.order) {
@@ -120,8 +120,8 @@ export default function OrderDetailPage() {
       await loadOrder();
       
     } catch (error) {
-      console.error('❌ Error en API call:', error);
-      console.error('📊 Detalles del error:', error.response?.data);
+      console.error(' Error en API call:', error);
+      console.error(' Detalles del error:', error.response?.data);
       
       const errorMessage = error.response?.data?.error || 
                           error.response?.data?.details || 
@@ -138,7 +138,7 @@ export default function OrderDetailPage() {
   };
 
   const updateOrderStatus = async (newStatus) => {
-    console.log('📝 Actualizando estado a:', newStatus);
+    console.log(' Actualizando estado a:', newStatus);
     await handleApiCall(
       () => axios.put(`/api/orders/${id}`, { 
         estado: newStatus 
@@ -149,7 +149,7 @@ export default function OrderDetailPage() {
 
   const updateTrackingNumber = async (trackingNumber) => {
     if (!trackingNumber.trim()) return;
-    console.log('📦 Actualizando número de seguimiento:', trackingNumber);
+    console.log(' Actualizando número de seguimiento:', trackingNumber);
     await handleApiCall(
       () => axios.put(`/api/orders/${id}`, { 
         numero_seguimiento: trackingNumber 
@@ -159,7 +159,7 @@ export default function OrderDetailPage() {
   };
 
   const confirmarVenta = async () => {
-    console.log('✅ Confirmando venta...');
+    console.log(' Confirmando venta...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'confirmar_venta' 
@@ -169,7 +169,7 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoPagado = async () => {
-    console.log('💰 Marcando como pagado...');
+    console.log(' Marcando como pagado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_pagado' 
@@ -179,7 +179,7 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoEnviado = async () => {
-    console.log('🚚 Marcando como enviado...');
+    console.log(' Marcando como enviado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_enviado' 
@@ -189,7 +189,7 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoEntregado = async () => {
-    console.log('📦 Marcando como entregado...');
+    console.log(' Marcando como entregado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_entregado' 
@@ -203,7 +203,7 @@ export default function OrderDetailPage() {
       return;
     }
     
-    console.log('❌ Cancelando orden...');
+    console.log(' Cancelando orden...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'cancelar_orden' 
@@ -214,11 +214,11 @@ export default function OrderDetailPage() {
 
   // Función para debug - mostrar datos de la orden en consola
   const debugOrder = () => {
-    console.log('🐛 Datos de la orden:', order);
-    console.log('📊 Items:', order?.items);
-    console.log('💳 Pagos:', order?.pagos);
-    console.log('🚚 Estado:', order?.estado);
-    console.log('💰 Estado pago:', order?.estado_pago);
+    console.log(' Datos de la orden:', order);
+    console.log(' Items:', order?.items);
+    console.log(' Pagos:', order?.pagos);
+    console.log(' Estado:', order?.estado);
+    console.log(' Estado pago:', order?.estado_pago);
   };
 
   if (loading) {
@@ -264,7 +264,7 @@ export default function OrderDetailPage() {
               className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
               title="Mostrar datos en consola"
             >
-              🐛 Debug
+               Debug
             </button>
           )}
         </div>
@@ -347,7 +347,7 @@ export default function OrderDetailPage() {
                   disabled={updating}
                   className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center"
                 >
-                  {updating ? '🔄 Confirmando...' : '✅ Confirmar Venta'}
+                  {updating ? 'Confirmando...' : 'Confirmar Venta'}
                 </button>
               )}
               
@@ -357,7 +357,7 @@ export default function OrderDetailPage() {
                   disabled={updating}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center"
                 >
-                  {updating ? '🔄 Marcando...' : '💰 Marcar como Pagado'}
+                  {updating ? ' Marcando...' : 'Marcar como Pagado'}
                 </button>
               )}
               
@@ -367,7 +367,7 @@ export default function OrderDetailPage() {
                   disabled={updating}
                   className="px-4 py-2 bg-teal-600 text-white rounded-md text-sm hover:bg-teal-700 disabled:opacity-50 flex items-center"
                 >
-                  {updating ? '🔄 Enviando...' : '🚚 Marcar como Enviado'}
+                  {updating ? 'Enviando...' : 'Marcar como Enviado'}
                 </button>
               )}
               
@@ -377,7 +377,7 @@ export default function OrderDetailPage() {
                   disabled={updating}
                   className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center"
                 >
-                  {updating ? '🔄 Entregando...' : '📦 Marcar como Entregado'}
+                  {updating ? 'Entregando...' : '📦 Marcar como Entregado'}
                 </button>
               )}
               
@@ -387,7 +387,7 @@ export default function OrderDetailPage() {
                   disabled={updating}
                   className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50 flex items-center"
                 >
-                  {updating ? '🔄 Cancelando...' : '❌ Cancelar Orden'}
+                  {updating ? 'Cancelando...' : 'Cancelar Orden'}
                 </button>
               )}
             </div>

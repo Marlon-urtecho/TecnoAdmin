@@ -164,7 +164,7 @@ export default function Products() {
                         </div>
                         {product.es_destacado && (
                           <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full mt-1">
-                            ⭐ Destacado
+                            Destacado
                           </span>
                         )}
                       </div>

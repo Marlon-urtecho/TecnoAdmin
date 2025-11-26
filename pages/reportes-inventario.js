@@ -248,7 +248,7 @@ export default function ReportesInventario() {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-              ⚠️ Productos con Stock Bajo
+              Productos con Stock Bajo
             </h2>
             <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
               {reportes.stockBajo.length} productos
