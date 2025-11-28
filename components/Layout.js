@@ -183,9 +183,9 @@ export default function Layout({ children }) {
 
   // --- MAIN DASHBOARD ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 text-slate-900 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 text-slate-900 flex flex-col overflow-hidden">
       {/* Top Bar (mobile) */}
-      <header className="md:hidden flex items-center justify-between p-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
+      <header className="md:hidden flex items-center justify-between p-4 border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm flex-shrink-0">
         <button
           onClick={() => setShowNav(!showNav)}
           className="text-slate-600 hover:text-blue-600 transition-all duration-300 p-2 rounded-lg hover:bg-slate-100"
@@ -212,13 +212,13 @@ export default function Layout({ children }) {
       </header>
 
       {/* MAIN LAYOUT */}
-      <div className="flex flex-grow">
+      <div className="flex flex-grow overflow-hidden">
         {/* Sidebar */}
         <Nav show={showNav} />
 
         {/* Content */}
         <main
-          className="flex-grow p-6 md:p-8 transition-all duration-300 bg-white/60 backdrop-blur-sm md:rounded-tl-3xl md:shadow-sm min-h-screen"
+          className="flex-grow p-6 md:p-8 transition-all duration-300 bg-white/60 backdrop-blur-sm md:rounded-tl-3xl md:shadow-sm overflow-y-auto"
           onClick={() => showNav && setShowNav(false)}
         >
           <div className="max-w-7xl mx-auto">

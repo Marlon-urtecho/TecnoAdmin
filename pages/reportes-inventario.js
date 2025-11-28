@@ -152,7 +152,7 @@ export default function ReportesInventario() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex-1">
           <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-            Reportes de Inventario 📊
+            Reportes de Inventario 
           </h1>
           <p className="text-slate-600 text-lg">
             Monitorea el estado de tu inventario en tiempo real
@@ -294,7 +294,7 @@ export default function ReportesInventario() {
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-              ❌ Productos Agotados
+               Productos Agotados
             </h2>
             <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
               {reportes.productosAgotados.length} productos
@@ -345,7 +345,7 @@ export default function ReportesInventario() {
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-sm mt-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-            📋 Movimientos Recientes
+             Movimientos Recientes
           </h2>
           <select 
             value={filtro}
@@ -420,7 +420,7 @@ export default function ReportesInventario() {
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-sm mt-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-            🏆 Productos Más Vendidos
+             Productos Más Vendidos
           </h2>
           <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
             {reportes.productosMasVendidos.length} productos

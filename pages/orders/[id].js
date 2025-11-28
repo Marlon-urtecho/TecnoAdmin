@@ -1,11 +1,9 @@
-// pages/orders/[id].js
 import Layout from "@/components/Layout";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 
-// Funciones auxiliares para estados
 const getEstadoTexto = (estado) => {
   const estados = {
     pendiente: 'Pendiente',
@@ -67,6 +65,11 @@ const formatFecha = (fecha) => {
   });
 };
 
+const formatFechaCorta = (fecha) => {
+  if (!fecha) return 'N/A';
+  return new Date(fecha).toLocaleDateString('es-ES');
+};
+
 export default function OrderDetailPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -84,13 +87,10 @@ export default function OrderDetailPage() {
   const loadOrder = async () => {
     try {
       setError(null);
-      console.log(' Cargando orden:', id);
       const response = await axios.get(`/api/orders/${id}`);
-      console.log(' Orden cargada:', response.data);
       setOrder(response.data);
     } catch (error) {
-      console.error(' Error loading order:', error);
-      console.error(' Detalles del error:', error.response?.data);
+      console.error('Error loading order:', error);
       setError('No se pudo cargar la orden');
     } finally {
       setLoading(false);
@@ -100,15 +100,11 @@ export default function OrderDetailPage() {
   const handleApiCall = async (apiCall, successMessage) => {
     setUpdating(true);
     try {
-      console.log(' Ejecutando acción API...');
       const response = await apiCall();
-      console.log(' Respuesta API:', response.data);
       
-      // Actualizar la orden con los datos devueltos
       if (response.data.order) {
         setOrder(response.data.order);
       } else if (response.data.pedido_id) {
-        // Si es la orden completa, actualizar directamente
         setOrder(response.data);
       }
       
@@ -116,21 +112,15 @@ export default function OrderDetailPage() {
         alert(successMessage);
       }
       
-      // Recargar la orden para asegurar datos actualizados
       await loadOrder();
       
     } catch (error) {
-      console.error(' Error en API call:', error);
-      console.error(' Detalles del error:', error.response?.data);
-      
+      console.error('Error en API call:', error);
       const errorMessage = error.response?.data?.error || 
                           error.response?.data?.details || 
                           error.message || 
                           'Error en la operación';
-      
       alert(`Error: ${errorMessage}`);
-      
-      // Recargar la orden para tener datos actualizados incluso en error
       await loadOrder();
     } finally {
       setUpdating(false);
@@ -138,7 +128,6 @@ export default function OrderDetailPage() {
   };
 
   const updateOrderStatus = async (newStatus) => {
-    console.log(' Actualizando estado a:', newStatus);
     await handleApiCall(
       () => axios.put(`/api/orders/${id}`, { 
         estado: newStatus 
@@ -149,7 +138,6 @@ export default function OrderDetailPage() {
 
   const updateTrackingNumber = async (trackingNumber) => {
     if (!trackingNumber.trim()) return;
-    console.log(' Actualizando número de seguimiento:', trackingNumber);
     await handleApiCall(
       () => axios.put(`/api/orders/${id}`, { 
         numero_seguimiento: trackingNumber 
@@ -159,7 +147,6 @@ export default function OrderDetailPage() {
   };
 
   const confirmarVenta = async () => {
-    console.log(' Confirmando venta...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'confirmar_venta' 
@@ -169,7 +156,6 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoPagado = async () => {
-    console.log(' Marcando como pagado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_pagado' 
@@ -179,7 +165,6 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoEnviado = async () => {
-    console.log(' Marcando como enviado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_enviado' 
@@ -189,7 +174,6 @@ export default function OrderDetailPage() {
   };
 
   const marcarComoEntregado = async () => {
-    console.log(' Marcando como entregado...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'marcar_como_entregado' 
@@ -203,7 +187,6 @@ export default function OrderDetailPage() {
       return;
     }
     
-    console.log(' Cancelando orden...');
     await handleApiCall(
       () => axios.post(`/api/orders/${id}`, { 
         action: 'cancelar_orden' 
@@ -212,13 +195,15 @@ export default function OrderDetailPage() {
     );
   };
 
-  // Función para debug - mostrar datos de la orden en consola
-  const debugOrder = () => {
-    console.log(' Datos de la orden:', order);
-    console.log(' Items:', order?.items);
-    console.log(' Pagos:', order?.pagos);
-    console.log(' Estado:', order?.estado);
-    console.log(' Estado pago:', order?.estado_pago);
+  // Función para imprimir factura
+  const imprimirFactura = () => {
+    const printContent = document.getElementById('factura-print');
+    const originalContents = document.body.innerHTML;
+    
+    document.body.innerHTML = printContent.innerHTML;
+    window.print();
+    document.body.innerHTML = originalContents;
+    window.location.reload();
   };
 
   if (loading) {
@@ -252,21 +237,10 @@ export default function OrderDetailPage() {
     <Layout>
       <div className="max-w-6xl mx-auto">
         {/* Header con navegación */}
-        <div className="mb-6 flex justify-between items-center">
+        <div className="mb-6">
           <Link href="/orders" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
             ← Volver a todas las órdenes
           </Link>
-          
-          {/* Botón de debug (solo en desarrollo) */}
-          {process.env.NODE_ENV === 'development' && (
-            <button
-              onClick={debugOrder}
-              className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
-              title="Mostrar datos en consola"
-            >
-               Debug
-            </button>
-          )}
         </div>
 
         {/* Header de la orden */}
@@ -278,14 +252,6 @@ export default function OrderDetailPage() {
               </h1>
               <p className="text-gray-600">
                 Creada el {formatFecha(order.fecha_creacion)}
-              </p>
-              {order.fecha_actualizacion && (
-                <p className="text-gray-500 text-sm">
-                  Actualizada el {formatFecha(order.fecha_actualizacion)}
-                </p>
-              )}
-              <p className="text-gray-500 text-sm">
-                ID: {order.pedido_id}
               </p>
             </div>
             <div className="text-right">
@@ -332,10 +298,10 @@ export default function OrderDetailPage() {
               </div>
 
               <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md text-sm hover:bg-gray-700"
+                onClick={imprimirFactura}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
               >
-                Imprimir
+                🖨️ Imprimir Factura
               </button>
             </div>
 
@@ -345,7 +311,7 @@ export default function OrderDetailPage() {
                 <button
                   onClick={confirmarVenta}
                   disabled={updating}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50"
                 >
                   {updating ? 'Confirmando...' : 'Confirmar Venta'}
                 </button>
@@ -355,9 +321,9 @@ export default function OrderDetailPage() {
                 <button
                   onClick={marcarComoPagado}
                   disabled={updating}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {updating ? ' Marcando...' : 'Marcar como Pagado'}
+                  {updating ? 'Marcando...' : 'Marcar como Pagado'}
                 </button>
               )}
               
@@ -365,7 +331,7 @@ export default function OrderDetailPage() {
                 <button
                   onClick={marcarComoEnviado}
                   disabled={updating}
-                  className="px-4 py-2 bg-teal-600 text-white rounded-md text-sm hover:bg-teal-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-md text-sm hover:bg-teal-700 disabled:opacity-50"
                 >
                   {updating ? 'Enviando...' : 'Marcar como Enviado'}
                 </button>
@@ -375,9 +341,9 @@ export default function OrderDetailPage() {
                 <button
                   onClick={marcarComoEntregado}
                   disabled={updating}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50"
                 >
-                  {updating ? 'Entregando...' : '📦 Marcar como Entregado'}
+                  {updating ? 'Entregando...' : 'Marcar como Entregado'}
                 </button>
               )}
               
@@ -385,34 +351,147 @@ export default function OrderDetailPage() {
                 <button
                   onClick={cancelarOrden}
                   disabled={updating}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50 flex items-center"
+                  className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
                 >
                   {updating ? 'Cancelando...' : 'Cancelar Orden'}
                 </button>
               )}
             </div>
-
-            {/* Estado de actualización */}
-            {updating && (
-              <div className="flex items-center text-blue-600 text-sm">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                Actualizando...
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Resto del código permanece igual */}
-        {/* Grid de información */}
+        {/* Contenido para impresión (oculto en pantalla normal) */}
+        <div id="factura-print" className="hidden">
+          <div className="p-8 bg-white">
+            {/* Encabezado de factura */}
+            <div className="border-b-2 border-gray-800 pb-4 mb-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h1 className="text-3xl font-bold">FACTURA</h1>
+                  <p className="text-lg">Orden #{order.numero_pedido}</p>
+                  <p className="text-gray-600">Fecha: {formatFechaCorta(order.fecha_creacion)}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold">${order.monto_total?.toFixed(2)}</div>
+                  <p className="text-sm">
+                    Estado: {getEstadoTexto(order.estado)} | Pago: {getEstadoPagoTexto(order.estado_pago)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Información del cliente */}
+            <div className="grid grid-cols-2 gap-8 mb-6">
+              <div>
+                <h2 className="text-lg font-bold mb-2">INFORMACIÓN DEL CLIENTE</h2>
+                <p><strong>Email:</strong> {order.correo_cliente}</p>
+                <p><strong>Teléfono:</strong> {order.telefono_cliente || 'No proporcionado'}</p>
+                {order.usuario?.perfil_usuario && (
+                  <p><strong>Nombre:</strong> {order.usuario.perfil_usuario.nombres} {order.usuario.perfil_usuario.apellidos}</p>
+                )}
+              </div>
+              
+              {order.direccion_envio && (
+                <div>
+                  <h2 className="text-lg font-bold mb-2">DIRECCIÓN DE ENVÍO</h2>
+                  <p>{order.direccion_envio.nombre_destinatario}</p>
+                  <p>{order.direccion_envio.linea_direccion1}</p>
+                  {order.direccion_envio.linea_direccion2 && <p>{order.direccion_envio.linea_direccion2}</p>}
+                  <p>{order.direccion_envio.ciudad}, {order.direccion_envio.estado_provincia}</p>
+                  <p>{order.direccion_envio.codigo_postal}, {order.direccion_envio.codigo_pais}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Productos */}
+            <div className="mb-6">
+              <h2 className="text-lg font-bold mb-4">PRODUCTOS</h2>
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 p-2 text-left">Producto</th>
+                    <th className="border border-gray-300 p-2 text-left">SKU</th>
+                    <th className="border border-gray-300 p-2 text-center">Cantidad</th>
+                    <th className="border border-gray-300 p-2 text-right">Precio Unit.</th>
+                    <th className="border border-gray-300 p-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order.items?.map((item, index) => (
+                    <tr key={item.item_pedido_id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                      <td className="border border-gray-300 p-2">{item.nombre_producto}</td>
+                      <td className="border border-gray-300 p-2">{item.sku_producto}</td>
+                      <td className="border border-gray-300 p-2 text-center">{item.cantidad}</td>
+                      <td className="border border-gray-300 p-2 text-right">${item.precio_unitario?.toFixed(2)}</td>
+                      <td className="border border-gray-300 p-2 text-right">${item.precio_total?.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Resumen de pagos */}
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <h2 className="text-lg font-bold mb-2">RESUMEN DE PAGO</h2>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>${order.subtotal_items?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Envío:</span>
+                    <span>${order.costo_envio?.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Impuestos:</span>
+                    <span>${order.monto_impuestos?.toFixed(2)}</span>
+                  </div>
+                  {order.monto_descuento > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span>Descuento:</span>
+                      <span>-${order.monto_descuento?.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-300 pt-1 font-bold">
+                    <span>TOTAL:</span>
+                    <span>${order.monto_total?.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {order.pagos && order.pagos.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-bold mb-2">PAGOS REGISTRADOS</h2>
+                  {order.pagos.map((pago) => (
+                    <div key={pago.pago_id} className="mb-2">
+                      <div className="flex justify-between">
+                        <span>${pago.monto?.toFixed(2)}</span>
+                        <span>{getEstadoPagoTexto(pago.estado)}</span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {formatFechaCorta(pago.fecha_creacion)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Información adicional */}
+            <div className="mt-8 pt-4 border-t border-gray-300 text-center text-sm text-gray-600">
+              <p>Gracias por su compra</p>
+              <p>Para consultas sobre su pedido, contacte a servicio al cliente</p>
+              <p>Factura generada el {formatFecha(new Date())}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Grid de información (vista normal) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Información del cliente */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Información del Cliente
-            </h2>
+            <h2 className="text-lg font-semibold mb-4">Información del Cliente</h2>
             <div className="space-y-3">
               <div>
                 <strong className="text-gray-700">Email:</strong>
@@ -438,13 +517,7 @@ export default function OrderDetailPage() {
 
           {/* Dirección de envío */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Dirección de Envío
-            </h2>
+            <h2 className="text-lg font-semibold mb-4">Dirección de Envío</h2>
             {order.direccion_envio ? (
               <div className="space-y-3">
                 <div>
@@ -480,12 +553,7 @@ export default function OrderDetailPage() {
 
           {/* Información de pago */}
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-              Información de Pago
-            </h2>
+            <h2 className="text-lg font-semibold mb-4">Información de Pago</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -535,12 +603,7 @@ export default function OrderDetailPage() {
         {/* Productos */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold flex items-center">
-              <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              Productos ({order.items?.length || 0})
-            </h2>
+            <h2 className="text-lg font-semibold">Productos ({order.items?.length || 0})</h2>
             <div className="text-sm text-gray-500">
               Total items: {order.items?.reduce((sum, item) => sum + (item.cantidad || 0), 0) || 0}
             </div>
@@ -611,7 +674,6 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Número de seguimiento */}
           {order.numero_seguimiento && (
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="font-semibold mb-3">Seguimiento</h3>

@@ -19,9 +19,7 @@ export const authOptions = {
       },
       async authorize(credentials) {
       
-        
         if (!credentials?.email || !credentials?.password) {
-          console.log('❌ Credenciales faltantes')
           throw new Error("Email y contraseña son requeridos")
         }
 
@@ -31,7 +29,6 @@ export const authOptions = {
           const user = await adapter.getUserByEmail(credentials.email)
           
           if (!user) {
-            console.log('❌ Usuario no encontrado:', credentials.email)
             throw new Error("Usuario no encontrado")
           }
 
@@ -45,18 +42,18 @@ export const authOptions = {
           })
 
           if (!usuarioCompleto) {
-            console.log('❌ Usuario no encontrado en BD:', user.id)
+            console.log(' Usuario no encontrado en BD:', user.id)
             throw new Error("Usuario no encontrado")
           }
 
           if (!usuarioCompleto.esta_activo) {
-            console.log('❌ Cuenta desactivada:', credentials.email)
+            console.log(' Cuenta desactivada:', credentials.email)
             throw new Error("Cuenta desactivada")
           }
 
           // Verificar si tiene contraseña (usuarios de Google pueden no tenerla)
           if (!usuarioCompleto.hash_contrasena) {
-            console.log('❌ Usuario no tiene contraseña configurada:', credentials.email)
+            console.log(' Usuario no tiene contraseña configurada:', credentials.email)
             throw new Error("Este usuario no tiene contraseña configurada. Usa Google para iniciar sesión.")
           }
 
@@ -67,7 +64,6 @@ export const authOptions = {
           )
 
           if (!isPasswordValid) {
-            console.log('❌ Contraseña incorrecta para:', credentials.email)
             throw new Error("Contraseña incorrecta")
           }
 
@@ -98,7 +94,7 @@ export const authOptions = {
             es_personal: usuarioCompleto.es_personal,
           }
         } catch (error) {
-          console.error('❌ Error en authorize:', error)
+          
           throw error
         }
       }
@@ -107,15 +103,14 @@ export const authOptions = {
   adapter: CustomPrismaAdapter(),
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 días
+    maxAge: 30 * 24 * 60 * 60, 
   },
   callbacks: {
     async signIn({ user, account, profile }) {
       console.log(' signIn callback - User:', user?.email, 'Provider:', account.provider)
       
-      // Para credenciales (email/contraseña), permitir el login directamente
+      //  permitir el login directamente
       if (account.provider === 'credentials') {
-        console.log(' Login con credenciales permitido')
         return true
       }
       
@@ -139,8 +134,6 @@ export const authOptions = {
           let usuarioFinal = usuarioExistente;
 
           if (usuarioExistente) {
-            console.log(' Usuario existente encontrado:', usuarioExistente.usuario_id)
-            
             // Verificar si ya tiene cuenta OAuth para este proveedor
             const cuentaExistente = usuarioExistente.cuentas_oauth.find(
               cuenta => cuenta.id_usuario_proveedor === account.providerAccountId && 
@@ -148,8 +141,7 @@ export const authOptions = {
             )
 
             if (!cuentaExistente) {
-              console.log('➕ Creando cuenta OAuth para usuario existente...')
-              
+         
               // Buscar proveedor
               let proveedor = await prisma.proveedorOAuth.findFirst({
                 where: { nombre: account.provider }

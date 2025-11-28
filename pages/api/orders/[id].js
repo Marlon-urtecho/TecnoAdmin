@@ -116,16 +116,12 @@ async function handlePut(req, res, id) {
     updateData.estado = estado;
     
     // Actualizaciones automáticas basadas en estado
-    if (estado === 'confirmado') {
-      updateData.fecha_confirmacion = new Date();
-    } else if (estado === 'enviado') {
-      updateData.fecha_envio = new Date();
-    } else if (estado === 'entregado') {
-      updateData.fecha_entrega = new Date();
+    if (estado === 'entregado') {
       updateData.estado_fulfillment = 'completado';
     } else if (estado === 'cancelado') {
       updateData.fecha_cancelacion = new Date();
     }
+    // Para 'enviado' no hay campo de fecha específico en tu schema
   }
 
   if (numero_seguimiento !== undefined) {
@@ -194,7 +190,6 @@ async function handlePost(req, res, id, session) {
     case 'confirmar_venta':
       updateData.estado = 'confirmado';
       updateData.estado_pago = 'pagado';
-      updateData.fecha_confirmacion = new Date();
       updateData.fecha_pago = new Date();
       
       // Crear pago automáticamente
@@ -250,13 +245,13 @@ async function handlePost(req, res, id, session) {
 
     case 'marcar_como_enviado':
       updateData.estado = 'enviado';
-      updateData.fecha_envio = new Date();
+      // No usar fecha_envio ya que no existe en el schema
       break;
 
     case 'marcar_como_entregado':
       updateData.estado = 'entregado';
       updateData.estado_fulfillment = 'completado';
-      updateData.fecha_entrega = new Date();
+      // No usar fecha_entrega ya que no existe en el schema
       break;
 
     case 'cancelar_orden':

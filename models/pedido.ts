@@ -1,0 +1,70 @@
+import { EstadoPedido, EstadoPago, EstadoFulfillment, CodigoMoneda } from '@/types/enums';
+
+export type Pedido = {
+  pedido_id: string;
+  numero_pedido: string;
+  usuario_id?: string | null;
+  estado: EstadoPedido;
+  estado_pago: EstadoPago;
+  estado_fulfillment: EstadoFulfillment;
+  correo_cliente: string;
+  telefono_cliente?: string | null;
+  direccion_facturacion_id: string;
+  direccion_envio_id: string;
+  moneda: CodigoMoneda;
+  subtotal_items: number;
+  costo_envio: number;
+  monto_impuestos: number;
+  monto_descuento: number;
+  monto_total: number;
+  metodo_envio_id?: string | null;
+  numero_seguimiento?: string | null;
+  fecha_entrega_estimada?: Date | null;
+  fecha_pago?: Date | null;
+  fecha_fulfillment?: Date | null;
+  fecha_cancelacion?: Date | null;
+  fecha_creacion: Date;
+  fecha_actualizacion: Date;
+};
+
+export type CreatePedidoInput = {
+  usuario_id?: string;
+  estado?: EstadoPedido;
+  estado_pago?: EstadoPago;
+  estado_fulfillment?: EstadoFulfillment;
+  correo_cliente: string;
+  telefono_cliente?: string;
+  direccion_facturacion_id: string;
+  direccion_envio_id: string;
+  moneda?: CodigoMoneda;
+  subtotal_items: number;
+  costo_envio?: number;
+  monto_impuestos?: number;
+  monto_descuento?: number;
+  monto_total: number;
+  metodo_envio_id?: string;
+  numero_seguimiento?: string;
+  fecha_entrega_estimada?: Date;
+};
+
+export type UpdatePedidoInput = {
+  estado?: EstadoPedido;
+  estado_pago?: EstadoPago;
+  estado_fulfillment?: EstadoFulfillment;
+  correo_cliente?: string;
+  telefono_cliente?: string;
+  direccion_facturacion_id?: string;
+  direccion_envio_id?: string;
+  moneda?: CodigoMoneda;
+  subtotal_items?: number;
+  costo_envio?: number;
+  monto_impuestos?: number;
+  monto_descuento?: number;
+  monto_total?: number;
+  metodo_envio_id?: string;
+  numero_seguimiento?: string;
+  fecha_entrega_estimada?: Date;
+  fecha_pago?: Date;
+  fecha_fulfillment?: Date;
+  fecha_cancelacion?: Date;
+};
